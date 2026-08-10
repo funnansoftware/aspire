@@ -1,0 +1,10 @@
+{
+    "name": "streams",
+    "version-string": "2026.8.10",
+    "port-version": 1,
+    "description": "CMake presets for various platforms and configurations.",
+    "homepage": "https://github.com/funnansoftware/streams",
+    "dependencies": [
+        "gtest"
+    ]
+}
