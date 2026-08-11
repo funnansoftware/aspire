@@ -4,6 +4,7 @@ module;
 #include <string>
 
 export module stream.string.tostring;
+import stream.string.errorcode;
 
 export namespace stream::string
 {

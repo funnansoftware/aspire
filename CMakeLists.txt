@@ -7,5 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 project(streams)
 
 include(cmake/build-apk.cmake)
+include(CTest)
+include(GoogleTest)
 
 add_subdirectory(src)
