@@ -1,6 +1,7 @@
 module;
 
 #include <concepts>
+#include <memory>
 #include <string>
 
 export module stream.string.concepts;
@@ -27,4 +28,8 @@ export namespace stream::string
     template <typename T>
     concept StringType =
         std::same_as<std::decay_t<T>, std::string> || std::same_as<std::decay_t<T>, std::string_view> || std::same_as<T, const char*>;
+
+    template <typename T>
+    concept PointerType = std::is_pointer_v<T> || std::same_as<std::decay_t<T>, std::nullptr_t> || std::same_as<std::decay_t<T>, std::unique_ptr<T>>
+                          || std::same_as<std::decay_t<T>, std::shared_ptr<T>> || std::same_as<std::decay_t<T>, std::weak_ptr<T>>;
 }
