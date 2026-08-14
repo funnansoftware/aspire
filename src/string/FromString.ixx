@@ -92,4 +92,15 @@ export namespace stream::string
 
         return std::unexpected(ErrorCode::InvalidArgument);
     }
+
+    template <CharType T>
+    [[nodiscard]] constexpr auto FromString(std::string_view str) -> std::expected<T, ErrorCode>
+    {
+        if (std::size(str) != 1)
+        {
+            return std::unexpected(ErrorCode::InvalidArgument);
+        }
+
+        return str[0];
+    }
 }

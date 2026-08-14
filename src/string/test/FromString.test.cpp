@@ -202,10 +202,32 @@ TEST(FromString, bool)
     }
 }
 
-// TEST(FromString, char)
-// {
-//     EXPECT_EQ(stream::string::FromString<char>("a"), 'a');
-// }
+TEST(FromString, char)
+{
+    {
+        constexpr auto result = stream::string::FromString<char>("A");
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), 'A');
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<char>("9");
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), '9');
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<char>("AB");
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<char>("");
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+}
 
 // TEST(FromString, nullptr)
 // {
