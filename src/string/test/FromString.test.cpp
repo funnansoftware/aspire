@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <limits>
 
 import stream.string.errorcode;
 import stream.string.fromstring;
@@ -93,24 +94,113 @@ TEST(FromString, long_long)
 
 TEST(FromString, int8_t)
 {
-    EXPECT_EQ(stream::string::FromString<std::int8_t>("42"), static_cast<std::int8_t>(42));
+    constexpr auto result = stream::string::FromString<std::int8_t>("42");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result.value(), static_cast<std::int8_t>(42));
 }
 
-// TEST(FromString, float)
-// {
-//     EXPECT_EQ(stream::string::FromString<float>("3.14"), 3.14F);
-// }
+TEST(FromString, float)
+{
+    {
+        const auto result = stream::string::FromString<float>("3.14");
+        EXPECT_EQ(result.value(), 3.14F);
+    }
 
-// TEST(FromString, double)
-// {
-//     EXPECT_EQ(stream::string::FromString<double>("3.14"), 3.14);
-// }
+    {
+        const auto result = stream::string::FromString<float>(std::to_string(std::numeric_limits<float>::max()));
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), std::numeric_limits<float>::max());
+    }
 
-// TEST(FromString, bool)
-// {
-//     EXPECT_EQ(stream::string::FromString<bool>("true"), true);
-//     EXPECT_EQ(stream::string::FromString<bool>("false"), false);
-// }
+    {
+        const auto result = stream::string::FromString<float>("1e39");
+        EXPECT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::OutOfRange);
+    }
+
+    {
+        const auto result = stream::string::FromString<float>("abc");
+        EXPECT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+}
+
+TEST(FromString, double)
+{
+    {
+        const auto result = stream::string::FromString<double>("3.14");
+        EXPECT_EQ(result.value(), 3.14);
+    }
+
+    {
+        const auto result = stream::string::FromString<double>(std::to_string(std::numeric_limits<double>::max()));
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), std::numeric_limits<double>::max());
+    }
+
+    {
+        const auto result = stream::string::FromString<double>("1e309");
+        EXPECT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::OutOfRange);
+    }
+
+    {
+        const auto result = stream::string::FromString<double>("abc");
+        EXPECT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+}
+
+TEST(FromString, bool)
+{
+    {
+        constexpr auto result = stream::string::FromString<bool>("true");
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), true);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>("false");
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), false);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>("TruE");
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), true);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>("fAlSe");
+        ASSERT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), false);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>("1");
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>("0");
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>("batman");
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+
+    {
+        constexpr auto result = stream::string::FromString<bool>(" true");
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error(), stream::string::ErrorCode::InvalidArgument);
+    }
+}
 
 // TEST(FromString, char)
 // {
