@@ -4,9 +4,9 @@ module;
 #include <memory>
 #include <string>
 
-export module stream.string.concepts;
+export module aspire.string.concepts;
 
-export namespace stream::string
+export namespace aspire::string
 {
     template <typename T>
     concept IntType = std::integral<T> && !std::same_as<T, bool> && !std::same_as<T, char> && !std::same_as<T, wchar_t> && !std::same_as<T, char16_t>

@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-import stream.string.tostring;
+import aspire.string.tostring;
 
 TEST(ToString, ToString)
 {
-    EXPECT_EQ(stream::string::ToString("hello"), "hello");
+    EXPECT_EQ(aspire::string::ToString("hello"), "hello");
 }
