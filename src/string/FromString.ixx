@@ -101,6 +101,6 @@ export namespace aspire::string
             return std::unexpected(ErrorCode::InvalidArgument);
         }
 
-        return str[0];
+        return str.front();
     }
 }
