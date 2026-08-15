@@ -8,11 +8,11 @@ module;
 #include <ranges>
 #include <stdexcept>
 
-export module stream.string.fromstring;
-import stream.string.concepts;
-import stream.string.errorcode;
+export module aspire.string.fromstring;
+import aspire.string.concepts;
+import aspire.string.errorcode;
 
-export namespace stream::string
+export namespace aspire::string
 {
     template <typename T>
     auto FromString(std::string_view) -> std::expected<T, ErrorCode>;
@@ -101,6 +101,6 @@ export namespace stream::string
             return std::unexpected(ErrorCode::InvalidArgument);
         }
 
-        return str[0];
+        return str.front();
     }
 }

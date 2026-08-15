@@ -1,6 +1,6 @@
-export module stream.string.errorcode;
+export module aspire.string.errorcode;
 
-export namespace stream::string
+export namespace aspire::string
 {
     enum class ErrorCode
     {

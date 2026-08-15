@@ -1,4 +1,4 @@
-project(stream-string-test)
+project(aspire-string-test)
 
 add_executable(${PROJECT_NAME})
 
@@ -12,7 +12,7 @@ enable_testing()
 find_package(GTest CONFIG REQUIRED)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    stream-string
+    aspire-string
     GTest::gtest
     GTest::gtest_main
 )

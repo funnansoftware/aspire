@@ -1,2 +1,2 @@
-# streams
-Collection of software projects I develop on stream.
+# aspire
+Personal integration and rendering engine.

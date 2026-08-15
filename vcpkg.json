@@ -1,9 +1,9 @@
 {
-    "name": "streams",
+    "name": "aspire",
     "version-string": "2026.8.10",
     "port-version": 1,
-    "description": "CMake presets for various platforms and configurations.",
-    "homepage": "https://github.com/funnansoftware/streams",
+    "description": "Personal integration and rendering engine.",
+    "homepage": "https://github.com/funnansoftware/aspire",
     "dependencies": [
         "gtest"
     ]

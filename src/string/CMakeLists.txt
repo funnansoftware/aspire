@@ -1,4 +1,4 @@
-project(stream-string)
+project(aspire-string)
 
 add_library(${PROJECT_NAME})
 
