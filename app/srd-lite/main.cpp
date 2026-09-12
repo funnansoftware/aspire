@@ -21,11 +21,11 @@ try
         // Render Game View.
         BeginTextureMode(target);
         ClearBackground(bg);
-        DrawTexture(texture, 0, 0, WHITE);
+        DrawTextureRec(texture, Rectangle{18, 18, 16, 16}, Vector2{30, 30}, WHITE);
         EndTextureMode();
 
         BeginDrawing();
-        ClearBackground(BLACK);
+        ClearBackground(bg);
 
         DrawTexturePro(target.texture, Rectangle{0, 0, static_cast<float>(target.texture.width), static_cast<float>(-target.texture.height)},
                        Rectangle{0, 0, static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, Vector2{0, 0}, 0, WHITE);
