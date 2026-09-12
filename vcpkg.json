@@ -5,6 +5,10 @@
     "description": "Personal integration and rendering engine.",
     "homepage": "https://github.com/funnansoftware/aspire",
     "dependencies": [
-        "gtest"
+        "gtest",
+        "raylib",
+        "nlohmann-json",
+        "magic-enum",
+        "palsigslot"
     ]
 }

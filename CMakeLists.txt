@@ -9,5 +9,7 @@ project(aspire)
 include(cmake/build-apk.cmake)
 include(CTest)
 include(GoogleTest)
+include(GNUInstallDirs)
 
 add_subdirectory(src)
+add_subdirectory(app)
