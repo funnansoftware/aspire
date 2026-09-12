@@ -8,6 +8,8 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true,
                 "CMAKE_CXX_COMPILER": "cl",
                 "CMAKE_C_COMPILER": "cl",
+                "CMAKE_RC_COMPILER": "rc",
+                "CMAKE_MT": "mt",
                 "CMAKE_CXX_FLAGS": "/MP /permissive- /W4 /WX /EHsc /Zc:preprocessor"
             }
         }
