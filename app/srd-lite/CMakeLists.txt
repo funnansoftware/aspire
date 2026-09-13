@@ -7,9 +7,11 @@ target_sources(${PROJECT_NAME} PRIVATE
 )
 
 find_package(raylib CONFIG REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     raylib
+    glfw
 )
 
 install(TARGETS ${PROJECT_NAME}

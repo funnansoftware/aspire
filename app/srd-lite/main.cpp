@@ -1,5 +1,6 @@
 #include <raylib.h>
-#include <filesystem>
+
+import std;
 
 auto main() -> int
 try
@@ -21,7 +22,8 @@ try
         // Render Game View.
         BeginTextureMode(target);
         ClearBackground(bg);
-        DrawTextureRec(texture, Rectangle{18, 18, 16, 16}, Vector2{30, 30}, WHITE);
+        // DrawTextureRec(texture, Rectangle{18, 18, 16, 16}, Vector2{30, 30}, WHITE);
+        DrawTexture(texture, 0, 0, WHITE);
         EndTextureMode();
 
         BeginDrawing();

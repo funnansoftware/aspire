@@ -10,7 +10,7 @@
                 "rhs": "Linux"
             },
             "cacheVariables": {
-                "VCPKG_HOST_TRIPLET": "x64-linux"
+                "VCPKG_HOST_TRIPLET": "x64-linux-release"
             }
         }
     ]

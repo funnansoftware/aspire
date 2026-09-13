@@ -49,3 +49,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && update-alternatives --install /usr/bin/lld lld /usr/bin/lld-23 100 \
     && update-alternatives --install /usr/bin/run-clang-tidy run-clang-tidy /usr/bin/run-clang-tidy-23 100 \
     && update-alternatives --install /usr/bin/clang-tidy-diff clang-tidy-diff /usr/bin/clang-tidy-diff-23.py 100
+
+# Raylib Dependencies.
+RUN apt-get update && apt-get install -y \
+    autoconf \
+    autoconf-archive \
+    automake \
+    libtool \
+    libxinerama-dev \
+    libxcursor-dev \
+    xorg-dev \
+    libglu1-mesa-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*

@@ -6,6 +6,7 @@
     "homepage": "https://github.com/funnansoftware/aspire",
     "dependencies": [
         "gtest",
+        "glfw3",
         "raylib",
         "nlohmann-json",
         "magic-enum",
