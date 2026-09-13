@@ -4,12 +4,22 @@
         {
             "name": "compiler-msvc",
             "hidden": true,
+            "environment": {
+                "ASPIRE_MSVC_VERSION": "14.51.36231",
+                "ASPIRE_MSVC_DIR": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/$env{ASPIRE_MSVC_VERSION}",
+                "ASPIRE_WINDOWS_SDK_DIR": "C:/Program Files (x86)/Windows Kits/10",
+                "ASPIRE_WINDOWS_SDK_VERSION": "10.0.26100.0",
+                "PATH": "$env{ASPIRE_MSVC_DIR}/bin/Hostx64/x64;$env{ASPIRE_WINDOWS_SDK_DIR}/bin/$env{ASPIRE_WINDOWS_SDK_VERSION}/x64;$penv{PATH}",
+                "INCLUDE": "$env{ASPIRE_MSVC_DIR}/include;$env{ASPIRE_MSVC_DIR}/ATLMFC/include;$env{ASPIRE_WINDOWS_SDK_DIR}/include/$env{ASPIRE_WINDOWS_SDK_VERSION}/ucrt;$env{ASPIRE_WINDOWS_SDK_DIR}/include/$env{ASPIRE_WINDOWS_SDK_VERSION}/shared;$env{ASPIRE_WINDOWS_SDK_DIR}/include/$env{ASPIRE_WINDOWS_SDK_VERSION}/um;$env{ASPIRE_WINDOWS_SDK_DIR}/include/$env{ASPIRE_WINDOWS_SDK_VERSION}/winrt;$env{ASPIRE_WINDOWS_SDK_DIR}/include/$env{ASPIRE_WINDOWS_SDK_VERSION}/cppwinrt",
+                "LIB": "$env{ASPIRE_MSVC_DIR}/lib/x64;$env{ASPIRE_MSVC_DIR}/ATLMFC/lib/x64;$env{ASPIRE_WINDOWS_SDK_DIR}/lib/$env{ASPIRE_WINDOWS_SDK_VERSION}/ucrt/x64;$env{ASPIRE_WINDOWS_SDK_DIR}/lib/$env{ASPIRE_WINDOWS_SDK_VERSION}/um/x64",
+                "LIBPATH": "$env{ASPIRE_MSVC_DIR}/lib/x64;$env{ASPIRE_MSVC_DIR}/lib/x86/store/references;$env{ASPIRE_WINDOWS_SDK_DIR}/UnionMetadata/$env{ASPIRE_WINDOWS_SDK_VERSION};$env{ASPIRE_WINDOWS_SDK_DIR}/References/$env{ASPIRE_WINDOWS_SDK_VERSION}"
+            },
             "cacheVariables": {
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true,
-                "CMAKE_CXX_COMPILER": "cl",
-                "CMAKE_C_COMPILER": "cl",
-                "CMAKE_RC_COMPILER": "rc",
-                "CMAKE_MT": "mt",
+                "CMAKE_CXX_COMPILER": "$env{ASPIRE_MSVC_DIR}/bin/Hostx64/x64/cl.exe",
+                "CMAKE_C_COMPILER": "$env{ASPIRE_MSVC_DIR}/bin/Hostx64/x64/cl.exe",
+                "CMAKE_RC_COMPILER": "$env{ASPIRE_WINDOWS_SDK_DIR}/bin/$env{ASPIRE_WINDOWS_SDK_VERSION}/x64/rc.exe",
+                "CMAKE_MT": "$env{ASPIRE_WINDOWS_SDK_DIR}/bin/$env{ASPIRE_WINDOWS_SDK_VERSION}/x64/mt.exe",
                 "CMAKE_CXX_FLAGS": "/MP /permissive- /W4 /WX /EHsc /Zc:preprocessor"
             }
         }
