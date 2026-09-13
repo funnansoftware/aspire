@@ -1,10 +1,13 @@
 #include <raylib.h>
 
 import std;
+import aspire;
 
 auto main() -> int
 try
 {
+    [[maybe_unused]] const auto engine = aspire::core::Engine{};
+
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(800, 600, "Hello Raylib");
     SetTargetFPS(60);
