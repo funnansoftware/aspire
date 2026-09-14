@@ -88,6 +88,19 @@ export namespace aspire::core
             properties_.emplace_back(std::make_unique<TemplateProperty<std::decay_t<decltype(x)>>>(name, x));
         }
 
+        auto getProperty(std::string_view name) const -> Property*
+        {
+            for (const auto& property : properties_)
+            {
+                if (property->name() == name)
+                {
+                    return property.get();
+                }
+            }
+
+            return nullptr;
+        }
+
         auto getProperties() const -> std::span<const std::unique_ptr<Property>>
         {
             return properties_;

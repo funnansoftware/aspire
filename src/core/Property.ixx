@@ -50,6 +50,8 @@ export namespace aspire::core
             return std::any_cast<T>(getValueAny());
         }
 
+        virtual auto setValueJson(const nlohmann::json& value) -> void = 0;
+        virtual auto getValueJson() const -> nlohmann::json = 0;
         virtual auto setValueString(std::string_view value) -> void = 0;
         virtual auto getValueString() const -> std::string = 0;
 
@@ -78,6 +80,16 @@ export namespace aspire::core
         auto getValueAny() const -> std::any
         {
             return value_;
+        }
+
+        auto setValueJson(const nlohmann::json& value) -> void
+        {
+            value_ = value.get<T>();
+        }
+
+        auto getValueJson() const -> nlohmann::json
+        {
+            return nlohmann::json(value_);
         }
 
         auto setValueString(std::string_view value) -> void
