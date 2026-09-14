@@ -3,8 +3,9 @@ module;
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <string>
 #include <nlohmann/json.hpp>
+#include <print>
+#include <string>
 
 export module aspire.parser.json;
 
@@ -39,9 +40,11 @@ export namespace aspire::parser::json
         for (const auto& item : json.items())
         {
             auto* property = object->getProperty(item.key());
+            std::println("Processing property: {}", item.key());
 
             if (property == nullptr)
             {
+                std::println("Property not found: {}", item.key());
                 // Add error.
                 continue;
             }

@@ -6,7 +6,6 @@ module;
 #include <string>
 #include <vector>
 
-
 export module aspire.core.object;
 
 import aspire.core.property;
@@ -51,6 +50,32 @@ export namespace aspire::core
             children_.emplace_back(std::move(x));
         }
 
+        auto getChild(std::size_t x = 0) -> std::shared_ptr<Object>
+        {
+            if (x >= std::size(children_))
+            {
+                return nullptr;
+            }
+
+            return children_[x];
+        }
+
+        template <ObjectType T>
+        auto getOrCreateChild() -> std::shared_ptr<T>
+        {
+            for (auto& child : children_)
+            {
+                if (auto casted = std::dynamic_pointer_cast<T>(child))
+                {
+                    return casted;
+                }
+            }
+
+            auto newChild = std::make_shared<T>();
+            addChild(newChild);
+            return newChild;
+        }
+
         auto getChildren() const -> std::span<const std::shared_ptr<Object>>
         {
             return children_;
@@ -86,6 +111,24 @@ export namespace aspire::core
         auto getParent() const -> std::shared_ptr<Object>
         {
             return parent_.lock();
+        }
+
+        template <ObjectType T>
+        auto getParent() const -> std::shared_ptr<T>
+        {
+            auto parent = parent_.lock();
+
+            while (parent != nullptr)
+            {
+                if (auto casted = std::dynamic_pointer_cast<T>(parent))
+                {
+                    return casted;
+                }
+
+                parent = parent->parent_.lock();
+            }
+
+            return nullptr;
         }
 
         auto registerProperty(std::string_view name, JsonSerializable auto& x) -> void

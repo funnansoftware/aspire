@@ -10,8 +10,10 @@ module;
 export module aspire.raylib.texture;
 
 import aspire.core.object;
+import aspire.core.engine;
 import aspire.core.property;
 import aspire.raylib.drawable;
+import aspire.raylib.textureloader;
 
 export namespace aspire::raylib
 {
@@ -26,11 +28,23 @@ export namespace aspire::raylib
 
         auto draw() const -> void override
         {
-            // DrawTextureRec(texture, Rectangle{18, 18, 16, 16}, Vector2{30, 30}, WHITE);
+            auto texture = getParent<aspire::core::Engine>()->getOrCreateChild<TextureLoader>()->LoadTexture(source_);
+            DrawTextureRec(texture, Rectangle{rect_[0], rect_[1], rect_[2], rect_[3]}, position_, WHITE);
+        }
+
+        auto setPosition(Vector2 x) noexcept
+        {
+            position_ = x;
+        }
+
+        auto getPosition() const noexcept
+        {
+            return position_;
         }
 
     private:
         std::filesystem::path source_;
-        std::array<int, 4> rect_;
+        std::array<float, 4> rect_{};
+        Vector2 position_{};
     };
 }

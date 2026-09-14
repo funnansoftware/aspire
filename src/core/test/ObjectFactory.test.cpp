@@ -24,3 +24,13 @@ TEST(ObjectFactory, RegisterAndCreateObject)
 
     EXPECT_NE(obj, nullptr);
 }
+
+TEST(ObjectFactory, RegisterWithCustomName)
+{
+    aspire::core::ObjectFactory factory;
+
+    factory.registerObject<MyObject>("CustomObjectName");
+    auto obj = factory.create("CustomObjectName");
+
+    EXPECT_NE(obj, nullptr);
+}

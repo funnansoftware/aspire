@@ -1,13 +1,17 @@
 #include <raylib.h>
+#include <memory>
+#include <nameof.hpp>
+#include <ranges>
 
-import std;
 import aspire;
 
 auto main() -> int
 try
 {
-    const auto engine = aspire::core::Engine{};
-    // engine.registerService<TextureManager>();
+    aspire::core::ObjectFactory factory;
+    factory.registerObject<aspire::raylib::Texture>();
+
+    auto engine = std::make_shared<aspire::core::Engine>();
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(800, 600, "Hello Raylib");
@@ -21,6 +25,12 @@ try
     const auto target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
     const auto bg = Color{.r = 71, .g = 45, .b = 60, .a = 255};
 
+    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_0.jsonc"));
+    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_1.jsonc"));
+    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_2.jsonc"));
+    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_3.jsonc"));
+    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_4.jsonc"));
+
     // return engine.run();
 
     while (!WindowShouldClose())
@@ -29,7 +39,15 @@ try
         BeginTextureMode(target);
         ClearBackground(bg);
         // DrawTextureRec(texture, Rectangle{18, 18, 16, 16}, Vector2{30, 30}, WHITE);
-        DrawTexture(texture, 0, 0, WHITE);
+        // DrawTexture(texture, 0, 0, WHITE);
+
+        for (auto [index, drawable] : std::views::enumerate(engine->getChildren<aspire::raylib::Drawable>()))
+        {
+            auto* t = dynamic_cast<aspire::raylib::Texture*>(drawable.get());
+            t->setPosition(Vector2{static_cast<float>(index * 32), static_cast<float>(index * 32)});
+            drawable->draw();
+        }
+
         EndTextureMode();
 
         BeginDrawing();
