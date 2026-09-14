@@ -5,6 +5,7 @@ add_executable(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE
     Engine.test.cpp
     Object.test.cpp
+    ObjectFactory.test.cpp
     Property.test.cpp
 )
 

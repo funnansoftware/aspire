@@ -10,6 +10,7 @@
         "raylib",
         "nlohmann-json",
         "magic-enum",
-        "palsigslot"
+        "palsigslot",
+        "nameof"
     ]
 }
