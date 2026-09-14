@@ -6,7 +6,8 @@ import aspire;
 auto main() -> int
 try
 {
-    [[maybe_unused]] const auto engine = aspire::core::Engine{};
+    const auto engine = aspire::core::Engine{};
+    // engine.registerService<TextureManager>();
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(800, 600, "Hello Raylib");
@@ -19,6 +20,8 @@ try
     constexpr auto gameScreenHeight = 360;
     const auto target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
     const auto bg = Color{.r = 71, .g = 45, .b = 60, .a = 255};
+
+    // return engine.run();
 
     while (!WindowShouldClose())
     {

@@ -4,8 +4,6 @@ module;
 
 export module aspire.core.engine;
 
-import std;
-
 export namespace aspire::core
 {
     class Engine

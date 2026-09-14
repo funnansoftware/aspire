@@ -1,9 +1,14 @@
 module;
+
 #include <algorithm>
 #include <memory>
+#include <span>
+#include <string>
+#include <vector>
+
+
 export module aspire.core.object;
 
-import std;
 import aspire.core.property;
 
 export namespace aspire::core

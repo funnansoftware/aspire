@@ -1,10 +1,13 @@
 module;
 
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <string>
 #include <nlohmann/json.hpp>
 
 export module aspire.parser.json;
 
-import std;
 import aspire.core.object;
 import aspire.core.objectfactory;
 
@@ -12,7 +15,6 @@ export namespace aspire::parser::json
 {
     auto ReadFile(const aspire::core::ObjectFactory& factory, const std::filesystem::path& x) -> std::shared_ptr<aspire::core::Object>
     {
-        std::ignore = factory;
         auto json = nlohmann::json::parse(std::ifstream{x});
 
         auto typeIt = json.find("type");

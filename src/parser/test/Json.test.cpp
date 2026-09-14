@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <filesystem>
+#include <fstream>
 #include <nameof.hpp>
 
 import aspire.parser.json;
