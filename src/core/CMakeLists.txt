@@ -7,6 +7,13 @@ target_sources(${PROJECT_NAME} PUBLIC
         Engine.ixx
         Module.ixx
         Object.ixx
+        Property.ixx
+)
+
+find_package(nlohmann_json CONFIG REQUIRED)
+
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    nlohmann_json::nlohmann_json
 )
 
 add_subdirectory(test)
