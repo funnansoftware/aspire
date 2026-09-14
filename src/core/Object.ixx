@@ -4,6 +4,7 @@ module;
 export module aspire.core.object;
 
 import std;
+import aspire.core.property;
 
 export namespace aspire::core
 {
@@ -82,8 +83,19 @@ export namespace aspire::core
             return parent_.lock();
         }
 
+        auto registerProperty(std::string_view name, JsonSerializable auto& x) -> void
+        {
+            properties_.emplace_back(std::make_unique<TemplateProperty<std::decay_t<decltype(x)>>>(name, x));
+        }
+
+        auto getProperties() const -> std::span<const std::unique_ptr<Property>>
+        {
+            return properties_;
+        }
+
     private:
         std::string name_;
+        std::vector<std::unique_ptr<Property>> properties_;
         std::vector<std::shared_ptr<Object>> children_;
         std::weak_ptr<Object> parent_;
     };

@@ -61,7 +61,7 @@ export namespace aspire::core
     class TemplateProperty : public Property
     {
     public:
-        TemplateProperty(std::string_view x) : Property(x)
+        TemplateProperty(std::string_view x, T& value) : Property(x), value_{value}
         {
         }
 
@@ -91,6 +91,6 @@ export namespace aspire::core
         }
 
     private:
-        T value_;
+        T& value_;
     };
 }

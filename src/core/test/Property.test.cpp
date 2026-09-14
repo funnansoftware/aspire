@@ -14,7 +14,8 @@ namespace
 
 TEST(TemplateProperty, int)
 {
-    aspire::core::TemplateProperty<int> prop("test");
+    int value{};
+    aspire::core::TemplateProperty<int> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(42);
@@ -26,7 +27,8 @@ TEST(TemplateProperty, int)
 
 TEST(TemplateProperty, string)
 {
-    aspire::core::TemplateProperty<std::string> prop("test");
+    std::string value{};
+    aspire::core::TemplateProperty<std::string> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(std::string("hello"));
@@ -38,7 +40,8 @@ TEST(TemplateProperty, string)
 
 TEST(TemplateProperty, double)
 {
-    aspire::core::TemplateProperty<double> prop("test");
+    double value{};
+    aspire::core::TemplateProperty<double> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(3.14);
@@ -50,7 +53,8 @@ TEST(TemplateProperty, double)
 
 TEST(TemplateProperty, bool)
 {
-    aspire::core::TemplateProperty<bool> prop("test");
+    bool value{};
+    aspire::core::TemplateProperty<bool> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(true);
@@ -62,7 +66,8 @@ TEST(TemplateProperty, bool)
 
 TEST(TemplateProperty, array)
 {
-    aspire::core::TemplateProperty<std::array<int, 5>> prop("test");
+    std::array<int, 5> value{};
+    aspire::core::TemplateProperty<std::array<int, 5>> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(std::array<int, 5>{1, 2, 3, 0, 0});
@@ -79,7 +84,8 @@ TEST(TemplateProperty, array)
 
 TEST(TemplateProperty, nested_array)
 {
-    aspire::core::TemplateProperty<std::array<std::array<int, 3>, 2>> prop("test");
+    std::array<std::array<int, 3>, 2> value{};
+    aspire::core::TemplateProperty<std::array<std::array<int, 3>, 2>> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(std::array<std::array<int, 3>, 2>{{{1, 2, 3}, {4, 5, 6}}});
@@ -96,7 +102,8 @@ TEST(TemplateProperty, nested_array)
 
 TEST(TemplateProperty, vector)
 {
-    aspire::core::TemplateProperty<std::vector<int>> prop("test");
+    std::vector<int> value{};
+    aspire::core::TemplateProperty<std::vector<int>> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(std::vector<int>{1, 2, 3});
@@ -112,7 +119,8 @@ TEST(TemplateProperty, vector)
 
 TEST(TemplateProperty, map)
 {
-    aspire::core::TemplateProperty<std::map<std::string, int>> prop("test");
+    std::map<std::string, int> value{};
+    aspire::core::TemplateProperty<std::map<std::string, int>> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(std::map<std::string, int>{{"one", 1}, {"two", 2}});
@@ -128,7 +136,8 @@ TEST(TemplateProperty, map)
 
 TEST(TemplateProperty, set)
 {
-    aspire::core::TemplateProperty<std::set<int>> prop("test");
+    std::set<int> value{};
+    aspire::core::TemplateProperty<std::set<int>> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
 
     prop.setValueAny(std::set<int>{1, 2, 3});

@@ -17,6 +17,20 @@ namespace
         TestObject2() = default;
         ~TestObject2() override = default;
     };
+
+    class TestObjectWithProperty : public aspire::core::Object
+    {
+    public:
+        TestObjectWithProperty()
+        {
+            registerProperty("value", value_);
+        }
+
+        ~TestObjectWithProperty() override = default;
+
+    private:
+        int value_{10};
+    };
 }
 
 TEST(Object, setName)
@@ -85,4 +99,20 @@ TEST(Object, getChildrenOfType)
     auto testObject2Children = parent->getChildren<TestObject2>();
     ASSERT_EQ(testObject2Children.size(), 1);
     EXPECT_EQ(testObject2Children[0], child2);
+}
+
+TEST(Object, getProperties)
+{
+    auto obj = std::make_shared<TestObjectWithProperty>();
+    auto properties = obj->getProperties();
+    ASSERT_EQ(properties.size(), 1);
+}
+
+TEST(Object, getPropertyNameAndValue)
+{
+    auto obj = std::make_shared<TestObjectWithProperty>();
+    auto properties = obj->getProperties();
+    ASSERT_EQ(properties.size(), 1);
+    EXPECT_EQ(properties.front()->name(), "value");
+    EXPECT_EQ(properties.front()->getValueAs<int>(), 10);
 }
