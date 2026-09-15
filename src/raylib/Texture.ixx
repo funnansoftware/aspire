@@ -24,8 +24,9 @@ export namespace aspire::raylib
 
         auto draw() const -> void override
         {
-            auto texture = getParent<aspire::core::Engine>()->getOrCreateChild<TextureLoader>()->LoadTexture(source_);
-            DrawTextureRec(texture, Rectangle{rect_[0], rect_[1], rect_[2], rect_[3]}, position_, WHITE);
+            auto texture = getParent<aspire::core::Engine>()->getOrCreateChild<TextureLoader>()->loadTexture(source_);
+            const auto& [x, y, width, height] = rect_;
+            DrawTextureRec(texture, Rectangle{.x = x, .y = y, .width = width, .height = height}, position_, WHITE);
         }
 
         auto setPosition(Vector2 x) noexcept

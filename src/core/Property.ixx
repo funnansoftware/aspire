@@ -28,32 +28,32 @@ export namespace aspire::core
         Property(Property&&) noexcept = delete;
         auto operator=(Property&&) noexcept -> Property& = delete;
 
-        auto name() const -> std::string_view
+        [[nodiscard]] auto name() const -> std::string_view
         {
             return name_;
         }
 
-        virtual auto typeInfo() const -> const std::type_info& = 0;
+        [[nodiscard]] virtual auto typeInfo() const -> const std::type_info& = 0;
 
         template <JsonSerializable T>
-        auto isType() const -> bool
+        [[nodiscard]] auto isType() const -> bool
         {
             return typeid(T) == typeInfo();
         }
 
         virtual auto setValueAny(std::any x) -> void = 0;
-        virtual auto getValueAny() const -> std::any = 0;
+        [[nodiscard]] virtual auto getValueAny() const -> std::any = 0;
 
         template <JsonSerializable T>
-        auto getValueAs() const -> T
+        [[nodiscard]] auto getValueAs() const -> T
         {
             return std::any_cast<T>(getValueAny());
         }
 
         virtual auto setValueJson(const nlohmann::json& value) -> void = 0;
-        virtual auto getValueJson() const -> nlohmann::json = 0;
+        [[nodiscard]] virtual auto getValueJson() const -> nlohmann::json = 0;
         virtual auto setValueString(std::string_view value) -> void = 0;
-        virtual auto getValueString() const -> std::string = 0;
+        [[nodiscard]] virtual auto getValueString() const -> std::string = 0;
 
     private:
         std::string name_;
@@ -67,37 +67,37 @@ export namespace aspire::core
         {
         }
 
-        auto typeInfo() const -> const std::type_info& override
+        [[nodiscard]] auto typeInfo() const -> const std::type_info& override
         {
             return typeid(T);
         }
 
-        auto setValueAny(std::any x) -> void
+        auto setValueAny(std::any x) -> void override
         {
             value_ = std::any_cast<T>(x);
         }
 
-        auto getValueAny() const -> std::any
+        [[nodiscard]] auto getValueAny() const -> std::any override
         {
             return value_;
         }
 
-        auto setValueJson(const nlohmann::json& value) -> void
+        auto setValueJson(const nlohmann::json& value) -> void override
         {
             value_ = value.get<T>();
         }
 
-        auto getValueJson() const -> nlohmann::json
+        [[nodiscard]] auto getValueJson() const -> nlohmann::json override
         {
             return nlohmann::json(value_);
         }
 
-        auto setValueString(std::string_view value) -> void
+        auto setValueString(std::string_view value) -> void override
         {
             value_ = nlohmann::json::parse(value).get<T>();
         }
 
-        auto getValueString() const -> std::string
+        [[nodiscard]] auto getValueString() const -> std::string override
         {
             return nlohmann::json(value_).dump();
         }

@@ -19,7 +19,13 @@ export namespace aspire::raylib
             CloseWindow();
         }
 
-        auto shouldClose() const -> bool
+        Window(const Window&) = delete;
+        auto operator=(const Window&) -> Window& = delete;
+
+        Window(Window&&) = delete;
+        auto operator=(Window&&) -> Window& = delete;
+
+        [[nodiscard]] static auto shouldClose() -> bool
         {
             return WindowShouldClose();
         }

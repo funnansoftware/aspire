@@ -50,13 +50,13 @@ export namespace aspire::core
                 return nullptr;
             }
 
-            return children_[x];
+            return children_.at(x);
         }
 
         template <ObjectType T>
         auto getOrCreateChild() -> std::shared_ptr<T>
         {
-            for (auto& child : children_)
+            for (const auto& child : children_)
             {
                 if (auto casted = std::dynamic_pointer_cast<T>(child))
                 {
@@ -79,7 +79,7 @@ export namespace aspire::core
         {
             std::vector<std::shared_ptr<T>> v;
 
-            for (auto& child : children_)
+            for (const auto& child : children_)
             {
                 if (auto casted = std::dynamic_pointer_cast<T>(child))
                 {

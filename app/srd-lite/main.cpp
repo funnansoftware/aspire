@@ -12,12 +12,12 @@ try
 
     auto engine = std::make_shared<aspire::core::Engine>();
 
+    constexpr auto windowWidth = 800;
+    constexpr auto windowHeight = 600;
+    constexpr auto targetFramesPerSecond = 60;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(800, 600, "Hello Raylib");
-    SetTargetFPS(60);
-
-    const auto texturePath = std::filesystem::path("D:/dev/aspire/assets/kenney/1-bit-pack/Tilesheet/colored-transparent.png");
-    const auto texture = LoadTexture(texturePath.string().c_str());
+    InitWindow(windowWidth, windowHeight, "Hello Raylib");
+    SetTargetFPS(targetFramesPerSecond);
 
     constexpr auto gameScreenWidth = 640;
     constexpr auto gameScreenHeight = 360;
@@ -37,13 +37,11 @@ try
         // Render Game View.
         BeginTextureMode(target);
         ClearBackground(bg);
-        // DrawTextureRec(texture, Rectangle{18, 18, 16, 16}, Vector2{30, 30}, WHITE);
-        // DrawTexture(texture, 0, 0, WHITE);
-
-        for (auto [index, drawable] : std::views::enumerate(engine->getChildren<aspire::raylib::Drawable>()))
+        constexpr auto tileSpacing = 32;
+        for (const auto& [index, drawable] : std::views::enumerate(engine->getChildren<aspire::raylib::Drawable>()))
         {
             auto* t = dynamic_cast<aspire::raylib::Texture*>(drawable.get());
-            t->setPosition(Vector2{static_cast<float>(index * 32), static_cast<float>(index * 32)});
+            t->setPosition(Vector2{.x = static_cast<float>(index * tileSpacing), .y = static_cast<float>(index * tileSpacing)});
             drawable->draw();
         }
 
@@ -52,8 +50,11 @@ try
         BeginDrawing();
         ClearBackground(bg);
 
-        DrawTexturePro(target.texture, Rectangle{0, 0, static_cast<float>(target.texture.width), static_cast<float>(-target.texture.height)},
-                       Rectangle{0, 0, static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, Vector2{0, 0}, 0, WHITE);
+        DrawTexturePro(
+            target.texture,
+            Rectangle{.x = 0, .y = 0, .width = static_cast<float>(target.texture.width), .height = static_cast<float>(-target.texture.height)},
+            Rectangle{.x = 0, .y = 0, .width = static_cast<float>(GetScreenWidth()), .height = static_cast<float>(GetScreenHeight())},
+            Vector2{.x = 0, .y = 0}, 0, WHITE);
 
         EndDrawing();
         PollInputEvents();

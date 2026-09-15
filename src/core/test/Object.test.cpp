@@ -5,18 +5,14 @@ import aspire.core.object;
 
 namespace
 {
+    constexpr int InitialPropertyValue = 10;
+
     class TestObject : public aspire::core::Object
     {
-    public:
-        TestObject() = default;
-        ~TestObject() override = default;
     };
 
     class TestObject2 : public aspire::core::Object
     {
-    public:
-        TestObject2() = default;
-        ~TestObject2() override = default;
     };
 
     class TestObjectWithProperty : public aspire::core::Object
@@ -27,10 +23,8 @@ namespace
             registerProperty("value", value_);
         }
 
-        ~TestObjectWithProperty() override = default;
-
     private:
-        int value_{10};
+        int value_{InitialPropertyValue};
     };
 }
 
@@ -50,7 +44,7 @@ TEST(Object, addChild)
 
     auto children = parent->getChildren();
     ASSERT_EQ(children.size(), 1);
-    EXPECT_EQ(children[0], child);
+    EXPECT_EQ(children.front(), child);
 }
 
 TEST(Object, getChildren)
@@ -64,8 +58,8 @@ TEST(Object, getChildren)
 
     auto children = parent->getChildren();
     ASSERT_EQ(children.size(), 2);
-    EXPECT_EQ(children[0], child1);
-    EXPECT_EQ(children[1], child2);
+    EXPECT_EQ(children.front(), child1);
+    EXPECT_EQ(children.back(), child2);
 }
 
 TEST(Object, remove)
@@ -95,11 +89,11 @@ TEST(Object, getChildrenOfType)
 
     auto testObjectChildren = parent->getChildren<TestObject>();
     ASSERT_EQ(testObjectChildren.size(), 1);
-    EXPECT_EQ(testObjectChildren[0], child1);
+    EXPECT_EQ(testObjectChildren.front(), child1);
 
     auto testObject2Children = parent->getChildren<TestObject2>();
     ASSERT_EQ(testObject2Children.size(), 1);
-    EXPECT_EQ(testObject2Children[0], child2);
+    EXPECT_EQ(testObject2Children.front(), child2);
 }
 
 TEST(Object, getProperties)
@@ -115,5 +109,5 @@ TEST(Object, getPropertyNameAndValue)
     auto properties = obj->getProperties();
     ASSERT_EQ(properties.size(), 1);
     EXPECT_EQ(properties.front()->name(), "value");
-    EXPECT_EQ(properties.front()->getValueAs<int>(), 10);
+    EXPECT_EQ(properties.front()->getValueAs<int>(), InitialPropertyValue);
 }

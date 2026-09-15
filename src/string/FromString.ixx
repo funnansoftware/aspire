@@ -34,30 +34,28 @@ export namespace aspire::string
     [[nodiscard]] constexpr auto FromString(std::string_view str) -> std::expected<T, ErrorCode>
     {
         T value{};
-        const auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
+        const auto [ptr, ec] = std::from_chars(std::to_address(str.begin()), std::to_address(str.end()), value);
 
         if (ec == std::errc())
         {
             return value;
         }
-        else if (ec == std::errc::invalid_argument)
+        if (ec == std::errc::invalid_argument)
         {
             return std::unexpected(ErrorCode::InvalidArgument);
         }
-        else if (ec == std::errc::result_out_of_range)
+        if (ec == std::errc::result_out_of_range)
         {
             return std::unexpected(ErrorCode::OutOfRange);
         }
-        else
-        {
-            return std::unexpected(ErrorCode::UnknownError);
-        }
+
+        return std::unexpected(ErrorCode::UnknownError);
     }
 
     // Custom constexpr tolower for ASCII
-    constexpr char ascii_tolower(char c)
+    constexpr auto AsciiTolower(char c) -> char
     {
-        return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c;
+        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
     }
 
     template <BoolType T>
@@ -71,13 +69,13 @@ export namespace aspire::string
             return std::unexpected(ErrorCode::InvalidArgument);
         }
 
-        const auto test = std::views::transform(str, [](auto c) { return ascii_tolower(c); });
+        const auto test = std::views::transform(str, [](auto c) { return AsciiTolower(c); });
 
         if (std::ranges::equal(test, strTrue))
         {
             return true;
         }
-        else if (std::ranges::equal(test, strFalse))
+        if (std::ranges::equal(test, strFalse))
         {
             return false;
         }

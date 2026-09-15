@@ -8,9 +8,6 @@ namespace
 {
     class MyObject : public aspire::core::Object
     {
-    public:
-        MyObject() = default;
-        ~MyObject() override = default;
     };
 }
 

@@ -1,8 +1,10 @@
 export module aspire.string.errorcode;
 
+import std;
+
 export namespace aspire::string
 {
-    enum class ErrorCode
+    enum class ErrorCode : std::uint8_t
     {
         None = 0,
         InvalidArgument = 1,

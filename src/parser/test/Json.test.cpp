@@ -18,7 +18,7 @@ namespace
         }
 
         std::filesystem::path texture;
-        std::array<int, 4> rect;
+        std::array<int, 4> rect{};
     };
 }
 
@@ -31,7 +31,7 @@ TEST(ReadFile, basic)
     std::filesystem::create_directories(tmp);
     const auto file = tmp / "test.json";
 
-    const auto json = R"({
+    const auto* const json = R"({
         "name": "ground_0",
         "texture": "path/to/texture.png",
         "rect": [0, 0, 100, 100],
@@ -42,13 +42,13 @@ TEST(ReadFile, basic)
 
     const auto obj = aspire::parser::json::ReadFile(factory, file);
 
-    // Remove file prior to performing any assert checks. We don't need this anymore.
-    std::filesystem::remove_all(tmp);
+    // Remove the temporary input before checking the parsed result.
+    EXPECT_GT(std::filesystem::remove_all(tmp), 0);
 
     ASSERT_NE(obj, nullptr);
 
     EXPECT_EQ(obj->getName(), "ground_0");
-    const auto jsonObj = dynamic_cast<JsonObject*>(obj.get());
+    auto* const jsonObj = dynamic_cast<JsonObject*>(obj.get());
     ASSERT_NE(jsonObj, nullptr);
     EXPECT_EQ(jsonObj->texture, "path/to/texture.png");
     EXPECT_EQ(jsonObj->rect, (std::array<int, 4>{0, 0, 100, 100}));

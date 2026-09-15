@@ -7,43 +7,6 @@ export module aspire.core.objectfactory;
 import std;
 import aspire.core.object;
 
-namespace aspire::core::detail
-{
-    constexpr auto shortTypeName(std::string_view name) noexcept -> std::string_view
-    {
-        if (const auto bracketPos = name.find('['); bracketPos != std::string_view::npos)
-        {
-            name = name.substr(0, bracketPos);
-        }
-
-        if (const auto nsPos = name.rfind("::"); nsPos != std::string_view::npos)
-        {
-            name = name.substr(nsPos + 2);
-        }
-
-        if (name.starts_with("class "))
-        {
-            name.remove_prefix(6);
-        }
-        else if (name.starts_with("struct "))
-        {
-            name.remove_prefix(7);
-        }
-        else if (name.starts_with("enum "))
-        {
-            name.remove_prefix(5);
-        }
-
-        return name;
-    }
-
-    template <typename T>
-    constexpr auto typeName() noexcept -> std::string_view
-    {
-        return shortTypeName(nameof::nameof_type<T>());
-    }
-}
-
 export namespace aspire::core
 {
 
@@ -84,6 +47,7 @@ export namespace aspire::core
     {
     public:
         ObjectFactory() = default;
+        ~ObjectFactory() = default;
 
         ObjectFactory(const ObjectFactory&) = delete;
         auto operator=(const ObjectFactory&) -> ObjectFactory& = delete;
@@ -94,11 +58,11 @@ export namespace aspire::core
         template <ObjectType T>
         auto registerObject(std::string_view name = {}) -> void
         {
-            const auto key = name.empty() ? std::string{detail::typeName<T>()} : std::string{name};
+            const auto key = name.empty() ? std::string{typeName<T>()} : std::string{name};
             creators_[key] = std::make_unique<TemplateCreator<T>>();
         }
 
-        auto create(const std::string& x) const -> std::shared_ptr<Object>
+        [[nodiscard]] auto create(const std::string& x) const -> std::shared_ptr<Object>
         {
             auto foundIt = creators_.find(x);
 
@@ -111,6 +75,43 @@ export namespace aspire::core
         }
 
     private:
+        static constexpr auto shortTypeName(std::string_view name) noexcept -> std::string_view
+        {
+            if (const auto bracketPos = name.find('['); bracketPos != std::string_view::npos)
+            {
+                name = name.substr(0, bracketPos);
+            }
+
+            if (const auto nsPos = name.rfind("::"); nsPos != std::string_view::npos)
+            {
+                name = name.substr(nsPos + 2);
+            }
+
+            constexpr std::string_view classPrefix = "class ";
+            constexpr std::string_view structPrefix = "struct ";
+            constexpr std::string_view enumPrefix = "enum ";
+            if (name.starts_with(classPrefix))
+            {
+                name.remove_prefix(classPrefix.size());
+            }
+            else if (name.starts_with(structPrefix))
+            {
+                name.remove_prefix(structPrefix.size());
+            }
+            else if (name.starts_with(enumPrefix))
+            {
+                name.remove_prefix(enumPrefix.size());
+            }
+
+            return name;
+        }
+
+        template <typename T>
+        static constexpr auto typeName() noexcept -> std::string_view
+        {
+            return shortTypeName(nameof::nameof_type<T>());
+        }
+
         std::unordered_map<std::string, std::unique_ptr<Creator>> creators_;
     };
 }

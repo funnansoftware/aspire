@@ -10,7 +10,7 @@ export namespace aspire::core
     class Engine : public aspire::core::Object
     {
     public:
-        [[nodiscard]] auto run() const -> int
+        [[nodiscard]] static auto run() -> int
         {
             return EXIT_SUCCESS;
         }

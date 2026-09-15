@@ -28,7 +28,7 @@ export namespace aspire::raylib
         TextureLoader(TextureLoader&&) noexcept = delete;
         auto operator=(TextureLoader&&) noexcept -> TextureLoader& = delete;
 
-        auto LoadTexture(const std::filesystem::path& path) -> ::Texture
+        auto loadTexture(const std::filesystem::path& path) -> ::Texture
         {
             auto it = textures_.find(path.string());
 
@@ -42,7 +42,7 @@ export namespace aspire::raylib
             return texture;
         }
 
-        auto UnloadTexture(::Texture texture) -> void
+        auto unloadTexture(::Texture texture) -> void
         {
             std::erase_if(textures_, [texture](const auto& pair) { return pair.second.id == texture.id; });
             ::UnloadTexture(texture);
