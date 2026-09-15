@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
-#include <filesystem>
-#include <fstream>
 #include <nameof.hpp>
 
+import std;
 import aspire.parser.json;
 import aspire.core.object;
 import aspire.core.objectfactory;

@@ -1,7 +1,6 @@
 module;
 
 #include <cstdlib>
-#include <vector>
 
 export module aspire.core.engine;
 import aspire.core.object;

@@ -1,9 +1,6 @@
-module;
-
-#include <expected>
-#include <string>
-
 export module aspire.string.tostring;
+
+import std;
 import aspire.string.errorcode;
 
 export namespace aspire::string

@@ -1,10 +1,10 @@
 module;
 
 #include <nameof.hpp>
-#include <unordered_map>
 
 export module aspire.core.objectfactory;
 
+import std;
 import aspire.core.object;
 
 namespace aspire::core::detail

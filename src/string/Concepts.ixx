@@ -1,10 +1,6 @@
-module;
-
-#include <concepts>
-#include <memory>
-#include <string>
-
 export module aspire.string.concepts;
+
+import std;
 
 export namespace aspire::string
 {

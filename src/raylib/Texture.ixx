@@ -2,13 +2,9 @@ module;
 
 #include <raylib.h>
 
-#include <array>
-#include <filesystem>
-#include <string>
-#include <typeinfo>
-
 export module aspire.raylib.texture;
 
+import std;
 import aspire.core.object;
 import aspire.core.engine;
 import aspire.core.property;

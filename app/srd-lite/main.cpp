@@ -1,8 +1,7 @@
 #include <raylib.h>
-#include <memory>
 #include <nameof.hpp>
-#include <ranges>
 
+import std;
 import aspire;
 
 auto main() -> int

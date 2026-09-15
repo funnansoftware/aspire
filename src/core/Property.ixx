@@ -1,13 +1,10 @@
 module;
 
-// Must precede nlohmann/json.hpp so __cpp_lib_filesystem is defined (import std doesn't set preprocessor macros).
-#include <concepts>
-#include <filesystem>
 #include <nlohmann/json.hpp>
-#include <typeinfo>
-
 
 export module aspire.core.property;
+
+import std;
 
 export namespace aspire::core
 {

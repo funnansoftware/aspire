@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <limits>
 
+import std;
 import aspire.string.errorcode;
 import aspire.string.fromstring;
 

@@ -1,10 +1,10 @@
 module;
 
 #include <raylib.h>
-#include <filesystem>
-#include <unordered_map>
 
 export module aspire.raylib.textureloader;
+
+import std;
 import aspire.core.object;
 
 export namespace aspire::raylib
