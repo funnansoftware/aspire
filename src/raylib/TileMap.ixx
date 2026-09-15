@@ -27,6 +27,16 @@ export namespace aspire::raylib
             registerProperty("height", height_);
         }
 
+        auto setPosition(Vector2 position) noexcept -> void
+        {
+            position_ = position;
+        }
+
+        [[nodiscard]] auto getPosition() const noexcept -> Vector2
+        {
+            return position_;
+        }
+
         auto draw() const -> void override
         {
             if (width_ == 0 || height_ == 0)
@@ -39,7 +49,9 @@ export namespace aspire::raylib
             for (const auto& [index, tileIndex] : std::views::enumerate(data_))
             {
                 const auto rect = tileIndexToRectangle(tileIndex);
-                const auto position = dataIndexToPosition(index);
+                auto position = dataIndexToPosition(index);
+                position.x += position_.x;
+                position.y += position_.y;
                 DrawTextureRec(texture, rect, position, WHITE);
             }
         }
@@ -71,6 +83,7 @@ export namespace aspire::raylib
 
         std::vector<int> data_;
         std::filesystem::path source_;
+        Vector2 position_{};
         int spacing_{};
         int tileWidth_{};
         int tileHeight_{};

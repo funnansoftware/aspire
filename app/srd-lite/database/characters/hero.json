@@ -1,0 +1,6 @@
+{
+    "name": "hero",
+    "source": "D:/dev/aspire/assets/kenney/1-bit-pack/Tilesheet/colored-transparent.png",
+    "rect": [ 425, 1, 16, 16 ],
+    "type": "Texture"
+}

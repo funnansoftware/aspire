@@ -20,19 +20,20 @@ try
     InitWindow(windowWidth, windowHeight, "Hello Raylib");
     SetTargetFPS(targetFramesPerSecond);
 
-    constexpr auto gameScreenWidth = 640;
-    constexpr auto gameScreenHeight = 360;
+    constexpr auto gameScreenWidth = 320;
+    constexpr auto gameScreenHeight = 180;
     const auto target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
     const auto bg = Color{.r = 71, .g = 45, .b = 60, .a = 255};
 
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/levels/level_1.json"));
-    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_0.jsonc"));
-    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_1.jsonc"));
-    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_2.jsonc"));
-    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_3.jsonc"));
-    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_4.jsonc"));
+    auto object = aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/levels/level_1.json");
+    auto* map = dynamic_cast<aspire::raylib::TileMap*>(object.get());
+    map->setPosition(Vector2{.x = gameScreenWidth * 0.5, .y = 0});
+    engine->addChild(object);
 
-    // return engine.run();
+    auto character = aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/characters/hero.json");
+    auto* texture = dynamic_cast<aspire::raylib::Texture*>(character.get());
+    texture->setPosition(Vector2{.x = gameScreenWidth * 0.55, .y = 50});
+    engine->addChild(character);
 
     while (!WindowShouldClose())
     {
