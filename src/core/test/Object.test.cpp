@@ -2,6 +2,7 @@
 
 import std;
 import aspire.core.object;
+import aspire.core.event;
 
 namespace
 {
@@ -110,4 +111,26 @@ TEST(Object, getPropertyNameAndValue)
     ASSERT_EQ(properties.size(), 1);
     EXPECT_EQ(properties.front()->name(), "value");
     EXPECT_EQ(properties.front()->getValueAs<int>(), InitialPropertyValue);
+}
+
+TEST(Object, events)
+{
+    struct ObjectTestEvent : public aspire::core::Object
+    {
+        auto onEvent(aspire::core::Event& x) -> void override
+        {
+            auto* eventUser = std::get_if<std::unique_ptr<aspire::core::EventUser>>(&x);
+
+            ASSERT_NE(eventUser, nullptr);
+            (*eventUser)->handled = true;
+        }
+    };
+
+    auto obj = std::make_shared<ObjectTestEvent>();
+    auto e = std::make_unique<aspire::core::EventUser>();
+    auto* ptr = e.get();
+    aspire::core::Event event = std::move(e);
+    obj->event(event);
+
+    EXPECT_TRUE(ptr->handled);
 }

@@ -2,6 +2,8 @@ export module aspire.core.object;
 
 import std;
 import aspire.core.property;
+import aspire.core.event;
+import aspire.core.overloaded;
 
 export namespace aspire::core
 {
@@ -145,6 +147,33 @@ export namespace aspire::core
         auto getProperties() const -> std::span<const std::unique_ptr<Property>>
         {
             return properties_;
+        }
+
+        auto event(aspire::core::Event& x) -> void
+        {
+            const auto handled = std::visit(
+                aspire::core::Overloaded{
+                    [](std::unique_ptr<EventUser>& e) { return e->handled; },
+                    [](auto& e) { return e.handled; },
+                },
+                x);
+
+            if (handled == true)
+            {
+                return;
+            }
+
+            onEvent(x);
+
+            for (auto& child : children_)
+            {
+                child->event(x);
+            }
+        }
+
+    protected:
+        virtual auto onEvent(aspire::core::Event&) -> void
+        {
         }
 
     private:
