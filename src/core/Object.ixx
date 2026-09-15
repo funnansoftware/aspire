@@ -149,6 +149,7 @@ export namespace aspire::core
             return properties_;
         }
 
+        // NOLINTNEXTLINE(misc-no-recursion)
         auto event(aspire::core::Event& x) -> void
         {
             const auto handled = std::visit(
@@ -158,12 +159,22 @@ export namespace aspire::core
                 },
                 x);
 
-            if (handled == true)
+            if (handled)
             {
                 return;
             }
 
-            onEvent(x);
+            auto* startup = std::get_if<EventStartup>(&x);
+
+            if (startup == nullptr)
+            {
+                onEvent(x);
+            }
+            else if (!started_)
+            {
+                onEvent(x);
+                started_ = true;
+            }
 
             for (auto& child : children_)
             {
@@ -172,7 +183,7 @@ export namespace aspire::core
         }
 
     protected:
-        virtual auto onEvent(aspire::core::Event&) -> void
+        virtual auto onEvent(aspire::core::Event& /*unused*/) -> void
         {
         }
 
@@ -181,5 +192,6 @@ export namespace aspire::core
         std::vector<std::unique_ptr<Property>> properties_;
         std::vector<std::shared_ptr<Object>> children_;
         std::weak_ptr<Object> parent_;
+        bool started_{false};
     };
 }

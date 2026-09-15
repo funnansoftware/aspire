@@ -3,7 +3,13 @@ module;
 #include <raylib.h>
 
 export module aspire.raylib.window;
+
+import std;
 import aspire.core.object;
+import aspire.core.engine;
+import aspire.core.event;
+import aspire.core.overloaded;
+import aspire.raylib.drawable;
 
 export namespace aspire::raylib
 {
@@ -19,7 +25,7 @@ export namespace aspire::raylib
             setScale(scale_);
         }
 
-        ~Window()
+        ~Window() override
         {
             UnloadRenderTexture(target_);
             CloseWindow();
@@ -30,6 +36,36 @@ export namespace aspire::raylib
 
         Window(Window&&) = delete;
         auto operator=(Window&&) -> Window& = delete;
+
+        // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+        auto width() const -> int
+        {
+            // NOLINTNEXTLINE([misc-multiple-inheritance)
+            return GetScreenWidth();
+        }
+
+        // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+        auto height() const -> int
+        {
+            // NOLINTNEXTLINE([misc-multiple-inheritance)
+            return GetScreenHeight();
+        }
+
+        auto setScale(Vector2 scale) noexcept -> void
+        {
+            scale_ = scale;
+
+            UnloadRenderTexture(target_);
+
+            const auto scaledWidth = static_cast<int>(static_cast<float>(width()) / scale_.x);
+            const auto scaledHeight = static_cast<int>(static_cast<float>(height()) / scale_.y);
+            target_ = LoadRenderTexture(scaledWidth, scaledHeight);
+        }
+
+        [[nodiscard]] auto getScale() const noexcept -> Vector2
+        {
+            return scale_;
+        }
 
         auto beginDraw(Color x) -> void
         {
@@ -53,38 +89,46 @@ export namespace aspire::raylib
             EndDrawing();
             PollInputEvents();
             SwapScreenBuffer();
+            translateEvents();
         }
 
-        auto width() const -> int
+    protected:
+        auto onEvent(aspire::core::Event& e) -> void override
         {
-            return GetScreenWidth();
+            std::visit(aspire::core::Overloaded{[this](aspire::core::EventStartup&) { engine_ = getParent<aspire::core::Engine>(); },
+                                                [this](aspire::core::EventRender&)
+                                                {
+                                                    beginDraw(BLACK);
+
+                                                    for (auto& drawable : getChildren<Drawable>())
+                                                    {
+                                                        drawable->draw();
+                                                    }
+
+                                                    endDraw();
+                                                },
+                                                [](auto&&) {}},
+                       e);
         }
 
-        auto height() const -> int
+        auto translateEvents() -> void
         {
-            return GetScreenHeight();
-        }
+            auto engine = engine_.lock();
 
-        auto setScale(Vector2 scale) noexcept -> void
-        {
-            scale_ = scale;
+            if (engine == nullptr)
+            {
+                return;
+            }
 
-            UnloadRenderTexture(target_);
-            target_ = LoadRenderTexture(static_cast<int>(width() / scale_.x), static_cast<int>(height() / scale_.y));
-        }
-
-        [[nodiscard]] auto getScale() const noexcept -> Vector2
-        {
-            return scale_;
-        }
-
-        [[nodiscard]] static auto shouldClose() -> bool
-        {
-            return WindowShouldClose();
+            if (WindowShouldClose())
+            {
+                engine->enqueueEvent(aspire::core::EventWindow{.type = aspire::core::EventWindow::Type::Closed});
+            }
         }
 
     private:
+        std::weak_ptr<aspire::core::Engine> engine_;
         RenderTexture2D target_{};
-        Vector2 scale_{1.0, 1.0};
+        Vector2 scale_{.x = 1.0, .y = 1.0};
     };
 }

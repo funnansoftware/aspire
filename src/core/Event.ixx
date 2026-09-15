@@ -8,7 +8,18 @@ export namespace aspire::core
 {
     struct EventWindow
     {
+        enum class Type : std::uint8_t
+        {
+            Unknown,
+            Resized,
+            Closed,
+            FocusGained,
+            FocusLost,
+            Moved
+        };
+
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
+        Type type{Type::Unknown};
         bool handled{false};
     };
 
@@ -30,21 +41,31 @@ export namespace aspire::core
         bool handled{false};
     };
 
+    struct EventStartup
+    {
+        std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
+        bool handled{false};
+    };
+
     struct EventUpdate
     {
+        std::chrono::steady_clock::duration elapsed{};
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
         bool handled{false};
     };
 
     struct EventUpdateFixed
     {
+        std::chrono::steady_clock::duration elapsed{};
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
         bool handled{false};
     };
 
     struct EventRender
     {
+        std::chrono::steady_clock::duration elapsed{};
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
+        float alpha{1.0F};
         bool handled{false};
     };
 
@@ -53,10 +74,16 @@ export namespace aspire::core
         EventUser() = default;
         virtual ~EventUser() = default;
 
+        EventUser(const EventUser&) = delete;
+        auto operator=(const EventUser&) -> EventUser& = delete;
+
+        EventUser(EventUser&&) noexcept = delete;
+        auto operator=(EventUser&&) noexcept -> EventUser& = delete;
+
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
         bool handled{false};
     };
 
-    using Event =
-        std::variant<EventWindow, EventKeyboard, EventMouse, EventJoystick, EventUpdate, EventUpdateFixed, EventRender, std::unique_ptr<EventUser>>;
+    using Event = std::variant<EventWindow, EventKeyboard, EventMouse, EventJoystick, EventStartup, EventUpdate, EventUpdateFixed, EventRender,
+                               std::unique_ptr<EventUser>>;
 }

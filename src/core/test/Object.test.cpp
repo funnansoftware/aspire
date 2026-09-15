@@ -117,6 +117,7 @@ TEST(Object, events)
 {
     struct ObjectTestEvent : public aspire::core::Object
     {
+    protected:
         auto onEvent(aspire::core::Event& x) -> void override
         {
             auto* eventUser = std::get_if<std::unique_ptr<aspire::core::EventUser>>(&x);
