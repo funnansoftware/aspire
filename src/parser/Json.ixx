@@ -12,7 +12,7 @@ export namespace aspire::parser::json
 {
     auto ReadFile(const aspire::core::ObjectFactory& factory, const std::filesystem::path& x) -> std::shared_ptr<aspire::core::Object>
     {
-        auto json = nlohmann::json::parse(std::ifstream{x});
+        auto json = nlohmann::json::parse(std::ifstream{x}, nullptr, true, true);
 
         auto typeIt = json.find("type");
 

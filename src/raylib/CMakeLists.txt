@@ -8,6 +8,7 @@ target_sources(${PROJECT_NAME} PUBLIC
         Module.ixx
         Texture.ixx
         TextureLoader.ixx
+        TileMap.ixx
         Window.ixx
 )
 

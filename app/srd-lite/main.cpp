@@ -9,11 +9,12 @@ try
 {
     aspire::core::ObjectFactory factory;
     factory.registerObject<aspire::raylib::Texture>();
+    factory.registerObject<aspire::raylib::TileMap>();
 
     auto engine = std::make_shared<aspire::core::Engine>();
 
-    constexpr auto windowWidth = 800;
-    constexpr auto windowHeight = 600;
+    constexpr auto windowWidth = 1280;
+    constexpr auto windowHeight = 720;
     constexpr auto targetFramesPerSecond = 60;
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(windowWidth, windowHeight, "Hello Raylib");
@@ -24,11 +25,12 @@ try
     const auto target = LoadRenderTexture(gameScreenWidth, gameScreenHeight);
     const auto bg = Color{.r = 71, .g = 45, .b = 60, .a = 255};
 
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_0.jsonc"));
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_1.jsonc"));
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_2.jsonc"));
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_3.jsonc"));
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_4.jsonc"));
+    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/levels/level_1.json"));
+    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_0.jsonc"));
+    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_1.jsonc"));
+    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_2.jsonc"));
+    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_3.jsonc"));
+    // engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/tiles/ground_4.jsonc"));
 
     // return engine.run();
 
@@ -37,11 +39,9 @@ try
         // Render Game View.
         BeginTextureMode(target);
         ClearBackground(bg);
-        constexpr auto tileSpacing = 32;
+
         for (const auto& [index, drawable] : std::views::enumerate(engine->getChildren<aspire::raylib::Drawable>()))
         {
-            auto* t = dynamic_cast<aspire::raylib::Texture*>(drawable.get());
-            t->setPosition(Vector2{.x = static_cast<float>(index * tileSpacing), .y = static_cast<float>(index * tileSpacing)});
             drawable->draw();
         }
 
@@ -63,9 +63,9 @@ try
 
     CloseWindow();
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 catch (...)
 {
-    return 1;
+    return EXIT_FAILURE;
 }
