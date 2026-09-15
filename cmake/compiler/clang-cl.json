@@ -1,0 +1,18 @@
+{
+    "version": 7,
+    "include": ["msvc.json"],
+    "configurePresets": [
+        {
+            "name": "compiler-clang-cl",
+            "hidden": true,
+            "inherits": "compiler-msvc",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang-cl",
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_CXX_FLAGS": "/W4 /EHsc -Wno-unused-command-line-argument",
+                "CMAKE_C_FLAGS": "/W4 -Wno-unused-command-line-argument",
+                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES": "${sourceDir}/cmake/compiler/clang-cl-stdlib.cmake"
+            }
+        }
+    ]
+}

@@ -2,6 +2,7 @@
     "version": 7,
     "include": [
         "../compiler/msvc.json",
+        "../compiler/clang-cl.json",
         "../config/binaryDir.json",
         "../config/debug.json",
         "../config/ninja.json",
@@ -37,6 +38,30 @@
             ]
         },
         {
+            "name": "x64-windows-clang-debug",
+            "inherits": [
+                "compiler-clang-cl",
+                "config-binaryDir",
+                "config-debug",
+                "config-ninja",
+                "config-vcpkg",
+                "host-x64-windows",
+                "target-x64-windows"
+            ]
+        },
+        {
+            "name": "x64-windows-clang-release",
+            "inherits": [
+                "compiler-clang-cl",
+                "config-binaryDir",
+                "config-ninja",
+                "config-release",
+                "config-vcpkg",
+                "host-x64-windows",
+                "target-x64-windows"
+            ]
+        },
+        {
             "name": "x64-windows-visualstudio",
             "inherits": [
                 "config-binaryDir",
@@ -55,6 +80,14 @@
         {
             "name": "x64-windows-msvc-release",
             "configurePreset": "x64-windows-msvc-release"
+        },
+        {
+            "name": "x64-windows-clang-debug",
+            "configurePreset": "x64-windows-clang-debug"
+        },
+        {
+            "name": "x64-windows-clang-release",
+            "configurePreset": "x64-windows-clang-release"
         }
     ],
     "testPresets": [
@@ -68,6 +101,20 @@
         {
             "name": "x64-windows-msvc-release",
             "configurePreset": "x64-windows-msvc-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "x64-windows-clang-debug",
+            "configurePreset": "x64-windows-clang-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "x64-windows-clang-release",
+            "configurePreset": "x64-windows-clang-release",
             "output": {
                 "outputOnFailure": true
             }
