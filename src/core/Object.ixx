@@ -176,7 +176,10 @@ export namespace aspire::core
                 started_ = true;
             }
 
-            for (auto& child : children_)
+            // Copy children to avoid modification during iteration.
+            auto children = children_;
+
+            for (auto& child : children)
             {
                 child->event(x);
             }

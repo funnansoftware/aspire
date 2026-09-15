@@ -18,6 +18,76 @@ export namespace aspire::raylib
     public:
         Window(int width, int height, const char* title)
         {
+            using Key = aspire::core::EventKeyboard::Key;
+            keyMap_[KEY_NULL] = Key::Unknown;
+            keyMap_[KEY_A] = Key::A;
+            keyMap_[KEY_B] = Key::B;
+            keyMap_[KEY_C] = Key::C;
+            keyMap_[KEY_D] = Key::D;
+            keyMap_[KEY_E] = Key::E;
+            keyMap_[KEY_F] = Key::F;
+            keyMap_[KEY_G] = Key::G;
+            keyMap_[KEY_H] = Key::H;
+            keyMap_[KEY_I] = Key::I;
+            keyMap_[KEY_J] = Key::J;
+            keyMap_[KEY_K] = Key::K;
+            keyMap_[KEY_L] = Key::L;
+            keyMap_[KEY_M] = Key::M;
+            keyMap_[KEY_N] = Key::N;
+            keyMap_[KEY_O] = Key::O;
+            keyMap_[KEY_P] = Key::P;
+            keyMap_[KEY_Q] = Key::Q;
+            keyMap_[KEY_R] = Key::R;
+            keyMap_[KEY_S] = Key::S;
+            keyMap_[KEY_T] = Key::T;
+            keyMap_[KEY_U] = Key::U;
+            keyMap_[KEY_V] = Key::V;
+            keyMap_[KEY_W] = Key::W;
+            keyMap_[KEY_X] = Key::X;
+            keyMap_[KEY_Y] = Key::Y;
+            keyMap_[KEY_Z] = Key::Z;
+            keyMap_[KEY_SPACE] = Key::Space;
+            keyMap_[KEY_ESCAPE] = Key::Escape;
+            keyMap_[KEY_ENTER] = Key::Enter;
+            keyMap_[KEY_TAB] = Key::Tab;
+            keyMap_[KEY_BACKSPACE] = Key::Backspace;
+            keyMap_[KEY_INSERT] = Key::Insert;
+            keyMap_[KEY_DELETE] = Key::Delete;
+            keyMap_[KEY_RIGHT] = Key::Right;
+            keyMap_[KEY_LEFT] = Key::Left;
+            keyMap_[KEY_DOWN] = Key::Down;
+            keyMap_[KEY_UP] = Key::Up;
+            keyMap_[KEY_PAGE_UP] = Key::Page_Up;
+            keyMap_[KEY_PAGE_DOWN] = Key::Page_Down;
+            keyMap_[KEY_HOME] = Key::Home;
+            keyMap_[KEY_END] = Key::End;
+            keyMap_[KEY_CAPS_LOCK] = Key::Caps_Lock;
+            keyMap_[KEY_SCROLL_LOCK] = Key::Scroll_Lock;
+            keyMap_[KEY_NUM_LOCK] = Key::Num_Lock;
+            keyMap_[KEY_PRINT_SCREEN] = Key::Print_Screen;
+            keyMap_[KEY_PAUSE] = Key::Pause;
+            keyMap_[KEY_F1] = Key::F1;
+            keyMap_[KEY_F2] = Key::F2;
+            keyMap_[KEY_F3] = Key::F3;
+            keyMap_[KEY_F4] = Key::F4;
+            keyMap_[KEY_F5] = Key::F5;
+            keyMap_[KEY_F6] = Key::F6;
+            keyMap_[KEY_F7] = Key::F7;
+            keyMap_[KEY_F8] = Key::F8;
+            keyMap_[KEY_F9] = Key::F9;
+            keyMap_[KEY_F10] = Key::F10;
+            keyMap_[KEY_F11] = Key::F11;
+            keyMap_[KEY_F12] = Key::F12;
+            keyMap_[KEY_LEFT_SHIFT] = Key::LeftShift;
+            keyMap_[KEY_LEFT_CONTROL] = Key::LeftControl;
+            keyMap_[KEY_LEFT_ALT] = Key::LeftAlt;
+            keyMap_[KEY_LEFT_SUPER] = Key::LeftSuper;
+            keyMap_[KEY_RIGHT_SHIFT] = Key::RightShift;
+            keyMap_[KEY_RIGHT_CONTROL] = Key::RightControl;
+            keyMap_[KEY_RIGHT_ALT] = Key::RightAlt;
+            keyMap_[KEY_RIGHT_SUPER] = Key::RightSuper;
+            keyMap_[KEY_MENU] = Key::Kb_Menu;
+
             SetConfigFlags(FLAG_WINDOW_RESIZABLE);
             InitWindow(width, height, title);
 
@@ -124,9 +194,28 @@ export namespace aspire::raylib
             {
                 engine->enqueueEvent(aspire::core::EventWindow{.type = aspire::core::EventWindow::Type::Closed});
             }
+
+            for (const auto& [rayKey, aspireKey] : keyMap_)
+            {
+                if (IsKeyPressed(rayKey))
+                {
+                    engine->enqueueEvent(aspire::core::EventKeyboard{.type = aspire::core::EventKeyboard::Type::KeyPressed, .key = aspireKey});
+                }
+
+                if (IsKeyReleased(rayKey))
+                {
+                    engine->enqueueEvent(aspire::core::EventKeyboard{.type = aspire::core::EventKeyboard::Type::KeyReleased, .key = aspireKey});
+                }
+
+                if (IsKeyPressedRepeat(rayKey))
+                {
+                    engine->enqueueEvent(aspire::core::EventKeyboard{.type = aspire::core::EventKeyboard::Type::KeyRepeated, .key = aspireKey});
+                }
+            }
         }
 
     private:
+        std::flat_map<int, aspire::core::EventKeyboard::Key> keyMap_;
         std::weak_ptr<aspire::core::Engine> engine_;
         RenderTexture2D target_{};
         Vector2 scale_{.x = 1.0, .y = 1.0};

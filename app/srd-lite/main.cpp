@@ -33,6 +33,8 @@ try
     texture->setPosition(Vector2{.x = (window->width() / 4.0F) * 0.55F, .y = 50});
     window->addChild(character);
 
+    window->addChild(std::make_shared<aspire::raylib::Text>());
+
     return engine->run();
 }
 catch (...)
