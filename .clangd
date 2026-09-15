@@ -1,0 +1,9 @@
+# Disable clang-tidy when opening vcpkg dependency files in the editor.
+# Paths are relative to this file and use forward slashes on every platform.
+If:
+  PathMatch:
+    - (.*/)?vcpkg_installed/.*
+    - vcpkg/.*
+Diagnostics:
+  ClangTidy:
+    Remove: '*'
