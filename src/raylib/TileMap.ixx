@@ -62,7 +62,10 @@ export namespace aspire::raylib
         {
             return Vector2{
                 .x = static_cast<float>(index % width_) * static_cast<float>(tileWidth_),
-                .y = (static_cast<float>(index) / static_cast<float>(width_)) * static_cast<float>(tileHeight_),
+
+                // Loss of floating precision is intention to keep tile positions aligned correctly.
+                // NOLINTNEXTLINE(bugprone-integer-division)
+                .y = static_cast<float>(index / width_) * static_cast<float>(tileHeight_),
             };
         }
 
