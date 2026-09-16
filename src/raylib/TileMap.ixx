@@ -28,6 +28,38 @@ export namespace aspire::raylib
             registerProperty("height", height_);
         }
 
+        [[nodiscard]] auto width() const -> int
+        {
+            return width_ * tileWidth_;
+        }
+
+        [[nodiscard]] auto height() const -> int
+        {
+            return height_ * tileHeight_;
+        }
+
+        [[nodiscard]] auto tileWidth() const -> int
+        {
+            return tileWidth_;
+        }
+
+        [[nodiscard]] auto tileHeight() const -> int
+        {
+            return tileHeight_;
+        }
+
+        auto positionToTile(Vector2 position) const -> Rectangle
+        {
+            const auto x = static_cast<int>(position.x) / tileWidth_;
+            const auto y = static_cast<int>(position.y) / tileHeight_;
+            return Rectangle{
+                .x = static_cast<float>(x * tileWidth_),
+                .y = static_cast<float>(y * tileHeight_),
+                .width = static_cast<float>(tileWidth_),
+                .height = static_cast<float>(tileHeight_),
+            };
+        }
+
     protected:
         auto onRender() const -> void override
         {

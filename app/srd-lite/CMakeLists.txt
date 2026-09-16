@@ -6,9 +6,13 @@ target_sources(${PROJECT_NAME} PRIVATE
     main.cpp
 )
 
+target_sources(${PROJECT_NAME} PRIVATE
+    FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        ViewWorld.ixx
+)
+
 target_link_libraries(${PROJECT_NAME} PRIVATE
     aspire
-    aspire-core
 )
 
 install(TARGETS ${PROJECT_NAME}

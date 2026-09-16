@@ -217,7 +217,9 @@ export namespace aspire::raylib
                 }
             }
 
-            const auto position = GetMousePosition();
+            auto position = GetMousePosition();
+            position = {.x = position.x / scale_.x, .y = position.y / scale_.y};
+
             const auto delta = GetMouseDelta();
             const auto scroll = GetMouseWheelMoveV();
             std::optional<aspire::core::EventMouse::Type> mouseEventType;

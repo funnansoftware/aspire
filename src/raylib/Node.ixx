@@ -17,6 +17,8 @@ export namespace aspire::raylib
         auto setPosition(Vector2 position) noexcept -> void
         {
             position_ = position;
+            transformDirtyLocal_ = true;
+            transformDirtyGlobal_ = true;
         }
 
         [[nodiscard]] auto getPosition() const noexcept -> Vector2
@@ -27,6 +29,8 @@ export namespace aspire::raylib
         auto setRotation(Vector2 rotation) noexcept -> void
         {
             rotation_ = rotation;
+            transformDirtyLocal_ = true;
+            transformDirtyGlobal_ = true;
         }
 
         [[nodiscard]] auto getRotation() const noexcept -> Vector2
@@ -37,6 +41,8 @@ export namespace aspire::raylib
         auto setScale(Vector2 scale) noexcept -> void
         {
             scale_ = scale;
+            transformDirtyLocal_ = true;
+            transformDirtyGlobal_ = true;
         }
 
         [[nodiscard]] auto getScale() const noexcept -> Vector2
@@ -44,20 +50,58 @@ export namespace aspire::raylib
             return scale_;
         }
 
-        [[nodiscard]] auto getTransform() const noexcept -> Matrix
+        [[nodiscard]] auto getTransformLocal() const noexcept -> Matrix
         {
-            Matrix transform = MatrixIdentity();
-            transform = MatrixMultiply(transform, MatrixTranslate(position_.x, position_.y, 0.0F));
-            transform = MatrixMultiply(transform, MatrixRotateXYZ({.x = rotation_.x, .y = rotation_.y, .z = 0.0F}));
-            transform = MatrixMultiply(transform, MatrixScale(scale_.x, scale_.y, 1.0F));
-            return transform;
+            if (transformDirtyLocal_)
+            {
+                transformLocal_ = MatrixIdentity();
+                transformLocal_ = MatrixMultiply(transformLocal_, MatrixTranslate(position_.x, position_.y, 0.0F));
+                transformLocal_ = MatrixMultiply(transformLocal_, MatrixRotateXYZ({.x = rotation_.x, .y = rotation_.y, .z = 0.0F}));
+                transformLocal_ = MatrixMultiply(transformLocal_, MatrixScale(scale_.x, scale_.y, 1.0F));
+                transformDirtyLocal_ = false;
+            }
+
+            return transformLocal_;
+        }
+
+        // NOLINTNEXTLINE(misc-no-recursion)
+        [[nodiscard]] auto getTransformGlobal() const noexcept -> Matrix
+        {
+            if (transformDirtyGlobal_)
+            {
+                auto parent = getParent<aspire::raylib::Node>();
+
+                if (parent)
+                {
+                    transformGlobal_ = MatrixMultiply(parent->getTransformGlobal(), getTransformLocal());
+                }
+                else
+                {
+                    transformGlobal_ = getTransformLocal();
+                }
+
+                transformDirtyGlobal_ = false;
+            }
+
+            return transformGlobal_;
+        }
+
+        [[nodiscard]] auto mapFromGlobal(Vector2 x) const noexcept -> Vector2
+        {
+            const auto invTransform = MatrixInvert(getTransformGlobal());
+            return Vector2Transform(x, invTransform);
+        }
+
+        [[nodiscard]] auto mapFromLocal(Vector2 x) const noexcept -> Vector2
+        {
+            return Vector2Transform(x, getTransformLocal());
         }
 
     protected:
         auto onRenderPre() const -> void override
         {
             rlPushMatrix();
-            rlMultMatrixf(MatrixToFloat(getTransform()));
+            rlMultMatrixf(MatrixToFloat(getTransformLocal()));
         }
 
         auto onRenderPost() const -> void override
@@ -69,5 +113,9 @@ export namespace aspire::raylib
         Vector2 position_{.x = 0.0F, .y = 0.0F};
         Vector2 rotation_{.x = 0.0F, .y = 0.0F};
         Vector2 scale_{.x = 1.0F, .y = 1.0F};
+        mutable Matrix transformLocal_{};
+        mutable Matrix transformGlobal_{};
+        mutable bool transformDirtyLocal_{true};
+        mutable bool transformDirtyGlobal_{true};
     };
 }

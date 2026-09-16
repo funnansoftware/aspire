@@ -4,6 +4,7 @@
 
 import std;
 import aspire;
+import sl.viewworld;
 
 // NOLINTBEGIN
 
@@ -13,6 +14,7 @@ try
     aspire::core::ObjectFactory factory;
     factory.registerObject<aspire::raylib::Texture>();
     factory.registerObject<aspire::raylib::TileMap>();
+    factory.registerObject<sl::ViewWorld>();
 
     auto engine = std::make_shared<aspire::core::Engine>();
 
@@ -23,15 +25,18 @@ try
     window->setScale(Vector2{.x = 4.0F, .y = 4.0F});
     engine->addChild(window);
 
+    auto world = std::make_shared<sl::ViewWorld>();
+    world->setPosition(Vector2{.x = (window->width() / 4.0F) * 0.5F, .y = 0});
+    // world->setPosition(Vector2{.x = (window->width()) * 0.5F, .y = 0});
+    window->addChild(world);
+
     auto level = aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/levels/level_1.json");
-    auto* map = dynamic_cast<aspire::raylib::TileMap*>(level.get());
-    map->setPosition(Vector2{.x = (window->width() / 4.0F) * 0.5F, .y = 0});
-    window->addChild(level);
+    world->addChild(level);
 
     auto character = aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/characters/hero.json");
     auto* texture = dynamic_cast<aspire::raylib::Texture*>(character.get());
     texture->setPosition(Vector2{.x = 50, .y = 50});
-    level->addChild(character);
+    world->addChild(character);
 
     window->addChild(std::make_shared<aspire::raylib::Text>());
 

@@ -61,6 +61,19 @@ export namespace aspire::core
         }
 
         template <ObjectType T>
+        auto getChild(std::size_t x = 0) -> std::shared_ptr<T>
+        {
+            auto children = getChildren<T>();
+
+            if (x >= std::size(children))
+            {
+                return nullptr;
+            }
+
+            return children.at(x);
+        }
+
+        template <ObjectType T>
         auto getOrCreateChild() -> std::shared_ptr<T>
         {
             for (const auto& child : children_)
