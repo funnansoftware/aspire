@@ -1,6 +1,7 @@
 module;
 
 #include <raylib.h>
+#include <sigslot/signal.hpp>
 
 export module sl.viewworld;
 
@@ -16,6 +17,10 @@ export namespace sl
 {
     class ViewWorld : public aspire::raylib::Node
     {
+    public:
+        // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
+        sigslot::signal<Vector2> onTileClicked;
+
     protected:
         auto onStartup() -> void override
         {
@@ -30,6 +35,16 @@ export namespace sl
                                                 {
                                                     switch (e.type)
                                                     {
+                                                        case EventMouse::Type::ButtonPressed:
+                                                        {
+                                                            if (e.button == EventMouse::Button::Left)
+                                                            {
+                                                                const auto tile = tileMap_->positionToTile(mousePosition_);
+                                                                onTileClicked(Vector2{.x = tile.x, .y = tile.y});
+                                                            }
+                                                        }
+                                                        break;
+
                                                         case EventMouse::Type::Moved:
                                                             mousePosition_ = mapFromGlobal({.x = e.position.x, .y = e.position.y});
                                                             break;
