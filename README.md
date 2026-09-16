@@ -1,6 +1,23 @@
 # aspire
 Personal integration and rendering engine.
 
+## Installing on Windows
+
+Configure, build, and install using the same preset:
+
+```powershell
+cmake --preset x64-windows-clang-debug
+cmake --build --preset x64-windows-clang-debug
+cmake --install build/x64-windows-clang-debug
+& ./build/x64-windows-clang-debug/installed/bin/srd-lite.exe
+```
+
+The Windows presets enable vcpkg's experimental `X_VCPKG_APPLOCAL_DEPS_INSTALL`
+option so installation copies required vcpkg DLLs beside the executable in
+`installed/bin`. The default `VCPKG_APPLOCAL_DEPS` option only copies them beside
+the build output. Reconfigure existing build directories with their preset before
+installing to pick up this setting.
+
 ## Static analysis
 
 The `clang-tidy` and `clang-tidy-diff` build targets are available when the C++

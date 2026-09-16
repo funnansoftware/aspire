@@ -5,7 +5,8 @@
             "name": "target-x64-windows",
             "hidden": true,
             "cacheVariables": {
-                "VCPKG_TARGET_TRIPLET": "x64-windows"
+                "VCPKG_TARGET_TRIPLET": "x64-windows",
+                "X_VCPKG_APPLOCAL_DEPS_INSTALL": "ON"
             }
         }
     ]
