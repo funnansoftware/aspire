@@ -6,12 +6,12 @@ export module aspire.raylib.tilemap;
 
 import std;
 import aspire.core.engine;
-import aspire.raylib.drawable;
+import aspire.core.object;
 import aspire.raylib.textureloader;
 
 export namespace aspire::raylib
 {
-    class TileMap : public aspire::raylib::Drawable
+    class TileMap : public aspire::core::Object
     {
     public:
         TileMap()
@@ -37,7 +37,8 @@ export namespace aspire::raylib
             return position_;
         }
 
-        auto draw() const -> void override
+    protected:
+        auto onRender() const -> void override
         {
             if (width_ == 0 || height_ == 0)
             {

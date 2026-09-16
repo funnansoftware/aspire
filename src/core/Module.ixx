@@ -3,3 +3,4 @@ export import aspire.core.engine;
 export import aspire.core.object;
 export import aspire.core.objectfactory;
 export import aspire.core.property;
+export import aspire.core.vec2;

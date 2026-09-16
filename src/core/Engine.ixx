@@ -21,8 +21,7 @@ export namespace aspire::core
 
         [[nodiscard]] auto run() -> int
         {
-            aspire::core::Event e = aspire::core::EventStartup{};
-            event(e);
+            startup();
 
             start_ = std::chrono::steady_clock::now();
             running_ = true;
@@ -42,22 +41,21 @@ export namespace aspire::core
                 events_.clear();
 
                 // Updates.
-                e = aspire::core::EventUpdate{.elapsed = elapsed};
-                event(e);
+                update(std::chrono::duration_cast<std::chrono::duration<float>>(elapsed).count());
 
                 // Physics.
                 auto count = 0;
                 while (accumulate_ >= IntervalFixed && count < FrameLimit)
                 {
-                    e = aspire::core::EventUpdateFixed{.elapsed = IntervalFixed};
-                    event(e);
+                    updateFixed(std::chrono::duration_cast<std::chrono::duration<float>>(IntervalFixed).count());
                     accumulate_ -= IntervalFixed;
                     ++count;
                 }
 
                 // Rendering.
-                e = aspire::core::EventRender{.elapsed = elapsed};
-                event(e);
+                renderPre();
+                render();
+                renderPost();
             }
 
             return EXIT_SUCCESS;

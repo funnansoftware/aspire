@@ -11,6 +11,7 @@ target_sources(${PROJECT_NAME} PUBLIC
         Object.ixx
         ObjectFactory.ixx
         Property.ixx
+        Vec2.ixx
 )
 
 find_package(nlohmann_json CONFIG REQUIRED)

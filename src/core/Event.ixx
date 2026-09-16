@@ -1,6 +1,7 @@
 export module aspire.core.event;
 
 import std;
+import aspire.core.vec2;
 
 export namespace aspire::core
 {
@@ -153,41 +154,38 @@ export namespace aspire::core
 
     struct EventMouse
     {
+        enum class Type : std::uint8_t
+        {
+            Unknown,
+            ButtonPressed,
+            ButtonReleased,
+            Moved,
+            Scrolled
+        };
+
+        enum class Button : std::uint8_t
+        {
+            Unknown,
+            Left,
+            Right,
+            Middle,
+            Side,
+            Extra,
+            Back
+        };
+
+        Vec2 position{};
+        Vec2 scroll{};
+        Vec2 delta{};
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
+        Type type{Type::Unknown};
+        Button button{Button::Unknown};
         bool handled{false};
     };
 
     struct EventJoystick
     {
         std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
-        bool handled{false};
-    };
-
-    struct EventStartup
-    {
-        std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
-        bool handled{false};
-    };
-
-    struct EventUpdate
-    {
-        std::chrono::steady_clock::duration elapsed{};
-        std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
-        bool handled{false};
-    };
-
-    struct EventUpdateFixed
-    {
-        std::chrono::steady_clock::duration elapsed{};
-        std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
-        bool handled{false};
-    };
-
-    struct EventRender
-    {
-        std::chrono::steady_clock::duration elapsed{};
-        std::chrono::steady_clock::time_point timestamp{std::chrono::steady_clock::now()};
-        float alpha{1.0F};
         bool handled{false};
     };
 
@@ -206,6 +204,5 @@ export namespace aspire::core
         bool handled{false};
     };
 
-    using Event = std::variant<EventWindow, EventKeyboard, EventMouse, EventJoystick, EventStartup, EventUpdate, EventUpdateFixed, EventRender,
-                               std::unique_ptr<EventUser>>;
+    using Event = std::variant<EventWindow, EventKeyboard, EventMouse, EventJoystick, std::unique_ptr<EventUser>>;
 }

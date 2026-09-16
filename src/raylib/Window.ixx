@@ -9,7 +9,6 @@ import aspire.core.object;
 import aspire.core.engine;
 import aspire.core.event;
 import aspire.core.overloaded;
-import aspire.raylib.drawable;
 
 export namespace aspire::raylib
 {
@@ -88,6 +87,14 @@ export namespace aspire::raylib
             keyMap_[KEY_RIGHT_SUPER] = Key::RightSuper;
             keyMap_[KEY_MENU] = Key::Kb_Menu;
 
+            using Button = aspire::core::EventMouse::Button;
+            mouseButtonMap_[MOUSE_BUTTON_LEFT] = Button::Left;
+            mouseButtonMap_[MOUSE_BUTTON_RIGHT] = Button::Right;
+            mouseButtonMap_[MOUSE_BUTTON_MIDDLE] = Button::Middle;
+            mouseButtonMap_[MOUSE_BUTTON_SIDE] = Button::Side;
+            mouseButtonMap_[MOUSE_BUTTON_EXTRA] = Button::Extra;
+            mouseButtonMap_[MOUSE_BUTTON_FORWARD] = Button::Back;
+
             SetConfigFlags(FLAG_WINDOW_RESIZABLE);
             InitWindow(width, height, title);
 
@@ -163,22 +170,19 @@ export namespace aspire::raylib
         }
 
     protected:
-        auto onEvent(aspire::core::Event& e) -> void override
+        auto onStartup() -> void override
         {
-            std::visit(aspire::core::Overloaded{[this](aspire::core::EventStartup&) { engine_ = getParent<aspire::core::Engine>(); },
-                                                [this](aspire::core::EventRender&)
-                                                {
-                                                    beginDraw(BLACK);
+            engine_ = getParent<aspire::core::Engine>();
+        }
 
-                                                    for (auto& drawable : getChildren<Drawable>())
-                                                    {
-                                                        drawable->draw();
-                                                    }
+        auto onRenderPre() -> void override
+        {
+            beginDraw(BLACK);
+        }
 
-                                                    endDraw();
-                                                },
-                                                [](auto&&) {}},
-                       e);
+        auto onRenderPost() -> void override
+        {
+            endDraw();
         }
 
         auto translateEvents() -> void
@@ -212,10 +216,48 @@ export namespace aspire::raylib
                     engine->enqueueEvent(aspire::core::EventKeyboard{.type = aspire::core::EventKeyboard::Type::KeyRepeated, .key = aspireKey});
                 }
             }
+
+            const auto position = GetMousePosition();
+            const auto delta = GetMouseDelta();
+            const auto scroll = GetMouseWheelMoveV();
+            std::optional<aspire::core::EventMouse::Type> mouseEventType;
+            auto button = aspire::core::EventMouse::Button::Unknown;
+
+            for (const auto& [rayMouseButton, aspireMouseButton] : mouseButtonMap_)
+            {
+                if (IsMouseButtonPressed(rayMouseButton))
+                {
+                    mouseEventType = aspire::core::EventMouse::Type::ButtonPressed;
+                    button = aspireMouseButton;
+                }
+                else if (IsMouseButtonReleased(rayMouseButton))
+                {
+                    mouseEventType = aspire::core::EventMouse::Type::ButtonReleased;
+                    button = aspireMouseButton;
+                }
+                else if (delta.x != 0.0F || delta.y != 0.0F)
+                {
+                    mouseEventType = aspire::core::EventMouse::Type::Moved;
+                }
+                else if (scroll.x != 0.0F || scroll.y != 0.0F)
+                {
+                    mouseEventType = aspire::core::EventMouse::Type::Scrolled;
+                }
+            }
+
+            if (mouseEventType.has_value())
+            {
+                engine->enqueueEvent(aspire::core::EventMouse{.position = {.x = position.x, .y = position.y},
+                                                              .scroll = {.x = scroll.x, .y = scroll.y},
+                                                              .delta = {.x = delta.x, .y = delta.y},
+                                                              .type = mouseEventType.value(),
+                                                              .button = button});
+            }
         }
 
     private:
         std::flat_map<int, aspire::core::EventKeyboard::Key> keyMap_;
+        std::flat_map<int, aspire::core::EventMouse::Button> mouseButtonMap_;
         std::weak_ptr<aspire::core::Engine> engine_;
         RenderTexture2D target_{};
         Vector2 scale_{.x = 1.0, .y = 1.0};

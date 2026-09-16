@@ -42,7 +42,12 @@ export namespace aspire::core
             }
 
             x->parent_ = weak_from_this();
-            children_.emplace_back(std::move(x));
+            auto& child = children_.emplace_back(std::move(x));
+
+            if (started_)
+            {
+                child->startup();
+            }
         }
 
         auto getChild(std::size_t x = 0) -> std::shared_ptr<Object>
@@ -150,6 +155,23 @@ export namespace aspire::core
         }
 
         // NOLINTNEXTLINE(misc-no-recursion)
+        auto startup() -> void
+        {
+            if (!started_)
+            {
+                started_ = true;
+                onStartup();
+            }
+
+            auto children = children_;
+
+            for (auto& child : children)
+            {
+                child->startup();
+            }
+        }
+
+        // NOLINTNEXTLINE(misc-no-recursion)
         auto event(aspire::core::Event& x) -> void
         {
             const auto handled = std::visit(
@@ -164,17 +186,7 @@ export namespace aspire::core
                 return;
             }
 
-            auto* startup = std::get_if<EventStartup>(&x);
-
-            if (startup == nullptr)
-            {
-                onEvent(x);
-            }
-            else if (!started_)
-            {
-                onEvent(x);
-                started_ = true;
-            }
+            onEvent(x);
 
             // Copy children to avoid modification during iteration.
             auto children = children_;
@@ -185,8 +197,97 @@ export namespace aspire::core
             }
         }
 
+        // NOLINTNEXTLINE(misc-no-recursion)
+        auto update(float x) -> void
+        {
+            onUpdate(x);
+
+            auto children = children_;
+
+            for (auto& child : children)
+            {
+                child->update(x);
+            }
+        }
+
+        // NOLINTNEXTLINE(misc-no-recursion)
+        auto updateFixed(float x) -> void
+        {
+            onUpdateFixed(x);
+
+            auto children = children_;
+
+            for (auto& child : children)
+            {
+                child->updateFixed(x);
+            }
+        }
+
+        // NOLINTNEXTLINE(misc-no-recursion)
+        auto renderPre() -> void
+        {
+            onRenderPre();
+
+            auto children = children_;
+
+            for (auto& child : children)
+            {
+                child->renderPre();
+            }
+        }
+
+        // NOLINTNEXTLINE(misc-no-recursion)
+        auto render() const -> void
+        {
+            onRender();
+
+            auto children = children_;
+
+            for (auto& child : children)
+            {
+                child->render();
+            }
+        }
+
+        // NOLINTNEXTLINE(misc-no-recursion)
+        auto renderPost() -> void
+        {
+            onRenderPost();
+
+            auto children = children_;
+
+            for (auto& child : children)
+            {
+                child->renderPost();
+            }
+        }
+
     protected:
+        virtual auto onStartup() -> void
+        {
+        }
+
         virtual auto onEvent(aspire::core::Event& /*unused*/) -> void
+        {
+        }
+
+        virtual auto onUpdate(float /*unused*/) -> void
+        {
+        }
+
+        virtual auto onUpdateFixed(float /*unused*/) -> void
+        {
+        }
+
+        virtual auto onRenderPre() -> void
+        {
+        }
+
+        virtual auto onRender() const -> void
+        {
+        }
+
+        virtual auto onRenderPost() -> void
         {
         }
 

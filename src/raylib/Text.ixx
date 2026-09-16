@@ -9,20 +9,18 @@ import std;
 import aspire.core.object;
 import aspire.core.overloaded;
 import aspire.core.event;
-import aspire.raylib.drawable;
 
 export namespace aspire::raylib
 {
-    class Text : public Drawable
+    class Text : public aspire::core::Object
     {
-    public:
-        auto draw() const -> void override
+    protected:
+        auto onRender() const -> void override
         {
             // NOLINTNEXTLINE
-            DrawText(text_.c_str(), 0, 0, 14, WHITE);
+            DrawText(text_.c_str(), 0, 0, 12, WHITE);
         }
 
-    protected:
         auto onEvent(aspire::core::Event& e) -> void override
         {
             std::visit(aspire::core::Overloaded{[this](aspire::core::EventKeyboard& e)
@@ -30,6 +28,11 @@ export namespace aspire::raylib
                                                     text_ = magic_enum::enum_name(e.type);
                                                     text_ += ": ";
                                                     text_ += magic_enum::enum_name(e.key);
+                                                },
+                                                [this](aspire::core::EventMouse& e)
+                                                {
+                                                    text_ = std::format("{}: {}\nposition: {{ {}, {} }}", magic_enum::enum_name(e.type),
+                                                                        magic_enum::enum_name(e.button), e.position.x, e.position.y);
                                                 },
                                                 [](auto&&) {}},
                        e);
