@@ -6,7 +6,7 @@
             "hidden": true,
             "cacheVariables": {
                 "VCPKG_TARGET_TRIPLET": "x64-windows",
-                "X_VCPKG_APPLOCAL_DEPS_INSTALL": "ON"
+                "X_VCPKG_APPLOCAL_DEPS_INSTALL": true
             }
         }
     ]
