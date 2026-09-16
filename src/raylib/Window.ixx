@@ -144,13 +144,13 @@ export namespace aspire::raylib
             return scale_;
         }
 
-        auto beginDraw(Color x) -> void
+        auto beginDraw(Color x) const -> void
         {
             BeginTextureMode(target_);
             ClearBackground(x);
         }
 
-        auto endDraw() -> void
+        auto endDraw() const -> void
         {
             EndTextureMode();
 
@@ -175,17 +175,17 @@ export namespace aspire::raylib
             engine_ = getParent<aspire::core::Engine>();
         }
 
-        auto onRenderPre() -> void override
+        auto onRenderPre() const -> void override
         {
             beginDraw(BLACK);
         }
 
-        auto onRenderPost() -> void override
+        auto onRenderPost() const -> void override
         {
             endDraw();
         }
 
-        auto translateEvents() -> void
+        auto translateEvents() const -> void
         {
             auto engine = engine_.lock();
 

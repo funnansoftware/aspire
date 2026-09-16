@@ -224,21 +224,9 @@ export namespace aspire::core
         }
 
         // NOLINTNEXTLINE(misc-no-recursion)
-        auto renderPre() -> void
-        {
-            onRenderPre();
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->renderPre();
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
         auto render() const -> void
         {
+            onRenderPre();
             onRender();
 
             auto children = children_;
@@ -247,19 +235,8 @@ export namespace aspire::core
             {
                 child->render();
             }
-        }
 
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto renderPost() -> void
-        {
             onRenderPost();
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->renderPost();
-            }
         }
 
     protected:
@@ -279,7 +256,7 @@ export namespace aspire::core
         {
         }
 
-        virtual auto onRenderPre() -> void
+        virtual auto onRenderPre() const -> void
         {
         }
 
@@ -287,7 +264,7 @@ export namespace aspire::core
         {
         }
 
-        virtual auto onRenderPost() -> void
+        virtual auto onRenderPost() const -> void
         {
         }
 

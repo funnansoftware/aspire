@@ -53,9 +53,7 @@ export namespace aspire::core
                 }
 
                 // Rendering.
-                renderPre();
                 render();
-                renderPost();
             }
 
             return EXIT_SUCCESS;

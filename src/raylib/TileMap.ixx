@@ -7,11 +7,12 @@ export module aspire.raylib.tilemap;
 import std;
 import aspire.core.engine;
 import aspire.core.object;
+import aspire.raylib.node;
 import aspire.raylib.textureloader;
 
 export namespace aspire::raylib
 {
-    class TileMap : public aspire::core::Object
+    class TileMap : public aspire::raylib::Node
     {
     public:
         TileMap()
@@ -25,16 +26,6 @@ export namespace aspire::raylib
             registerProperty("columns", columns_);
             registerProperty("width", width_);
             registerProperty("height", height_);
-        }
-
-        auto setPosition(Vector2 position) noexcept -> void
-        {
-            position_ = position;
-        }
-
-        [[nodiscard]] auto getPosition() const noexcept -> Vector2
-        {
-            return position_;
         }
 
     protected:
@@ -51,8 +42,6 @@ export namespace aspire::raylib
             {
                 const auto rect = tileIndexToRectangle(tileIndex);
                 auto position = dataIndexToPosition(index);
-                position.x += position_.x;
-                position.y += position_.y;
                 DrawTextureRec(texture, rect, position, WHITE);
             }
         }
@@ -84,7 +73,6 @@ export namespace aspire::raylib
 
         std::vector<int> data_;
         std::filesystem::path source_;
-        Vector2 position_{};
         int spacing_{};
         int tileWidth_{};
         int tileHeight_{};

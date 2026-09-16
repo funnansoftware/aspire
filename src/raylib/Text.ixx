@@ -9,10 +9,11 @@ import std;
 import aspire.core.object;
 import aspire.core.overloaded;
 import aspire.core.event;
+import aspire.raylib.node;
 
 export namespace aspire::raylib
 {
-    class Text : public aspire::core::Object
+    class Text : public aspire::raylib::Node
     {
     protected:
         auto onRender() const -> void override
