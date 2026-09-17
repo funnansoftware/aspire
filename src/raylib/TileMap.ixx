@@ -18,6 +18,7 @@ export namespace aspire::raylib
         TileMap()
         {
             registerProperty("data", data_);
+            registerProperty("allowed", allowed_);
             registerProperty("source", source_);
             registerProperty("spacing", spacing_);
             registerProperty("tileWidth", tileWidth_);
@@ -104,6 +105,7 @@ export namespace aspire::raylib
         }
 
         std::vector<int> data_;
+        std::vector<int> allowed_;
         std::filesystem::path source_;
         int spacing_{};
         int tileWidth_{};

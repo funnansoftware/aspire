@@ -225,6 +225,16 @@ export namespace aspire::raylib
             std::optional<aspire::core::EventMouse::Type> mouseEventType;
             auto button = aspire::core::EventMouse::Button::Unknown;
 
+            if (delta.x != 0.0F || delta.y != 0.0F)
+            {
+                mouseEventType = aspire::core::EventMouse::Type::Moved;
+            }
+            else if (scroll.x != 0.0F || scroll.y != 0.0F)
+            {
+                mouseEventType = aspire::core::EventMouse::Type::Scrolled;
+            }
+
+            // Button events take priority over movement in the same frame.
             for (const auto& [rayMouseButton, aspireMouseButton] : mouseButtonMap_)
             {
                 if (IsMouseButtonPressed(rayMouseButton))
@@ -236,14 +246,6 @@ export namespace aspire::raylib
                 {
                     mouseEventType = aspire::core::EventMouse::Type::ButtonReleased;
                     button = aspireMouseButton;
-                }
-                else if (delta.x != 0.0F || delta.y != 0.0F)
-                {
-                    mouseEventType = aspire::core::EventMouse::Type::Moved;
-                }
-                else if (scroll.x != 0.0F || scroll.y != 0.0F)
-                {
-                    mouseEventType = aspire::core::EventMouse::Type::Scrolled;
                 }
             }
 
