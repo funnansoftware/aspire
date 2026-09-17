@@ -200,6 +200,8 @@ export namespace aspire::raylib
                                                    Tile{.x = -1, .y = -1}, Tile{.x = 1, .y = -1}, Tile{.x = 1, .y = 1}, Tile{.x = -1, .y = 1}};
 
             MovementRange result{width_, height_};
+            // Mark the start tile as visited so a neighbor's back-edge can't overwrite its `previous` and form a cycle.
+            result.at(start).distance = 0;
 
             std::queue<Tile> toVisit;
             toVisit.push(start);
