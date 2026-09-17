@@ -36,11 +36,7 @@ try
         aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/characters/hero.json"));
     character->setPosition(Vector2{.x = 50, .y = 50});
     world->addChild(character);
-
     window->addChild(std::make_shared<aspire::raylib::Text>());
-
-    // Game Logic
-    world->onTileClicked.connect([character](Vector2 pos) { character->setPosition(pos); });
 
     return engine->run();
 }
