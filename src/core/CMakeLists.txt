@@ -4,12 +4,15 @@ add_library(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        Overloaded.ixx
+        Database.ixx
+        Data.ixx
+        DataService.ixx
         Engine.ixx
         Event.ixx
         Module.ixx
         Object.ixx
         ObjectFactory.ixx
+        Overloaded.ixx
         Property.ixx
         Vec2.ixx
 )

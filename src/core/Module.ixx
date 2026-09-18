@@ -1,4 +1,7 @@
 export module aspire.core;
+export import aspire.core.data;
+export import aspire.core.database;
+export import aspire.core.dataservice;
 export import aspire.core.engine;
 export import aspire.core.object;
 export import aspire.core.objectfactory;

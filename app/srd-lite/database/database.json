@@ -1,0 +1,7 @@
+{
+    "type": "Database",
+    "files": [
+        "D:/dev/aspire/app/srd-lite/database/entities/hero.json",
+        "D:/dev/aspire/app/srd-lite/database/entities/goblin.json"
+    ]
+}

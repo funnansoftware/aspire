@@ -1,0 +1,29 @@
+{
+    "type": "DataService",
+    "objects": [
+        {
+            "type": "Character",
+            "name": "hero",
+            "str": 17,
+            "dex": 14,
+            "con": 15,
+            "int": 10,
+            "wis": 12,
+            "cha": 13,
+            "hp": 12,
+            "position": [ 50, 50 ]
+        },
+        {
+            "type": "Character",
+            "name": "goblin",
+            "str": 14,
+            "dex": 16,
+            "con": 12,
+            "int": 8,
+            "wis": 8,
+            "cha": 6,
+            "hp": 8,
+            "position": [ 80, 80 ]
+        }
+    ]
+}

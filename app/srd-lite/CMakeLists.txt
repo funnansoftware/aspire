@@ -8,6 +8,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 target_sources(${PROJECT_NAME} PRIVATE
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        Character.ixx
         ViewWorld.ixx
 )
 
