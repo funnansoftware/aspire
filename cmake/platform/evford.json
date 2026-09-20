@@ -1,0 +1,58 @@
+{
+    "version": 7,
+    "include": [
+        "../compiler/emcc.json",
+        "../config/binaryDir.json",
+        "../config/debug.json",
+        "../config/ninja.json",
+        "../config/release.json",
+        "../config/vcpkg.json",
+        "../target/wasm32-emscripten.json"
+    ],
+    "configurePresets": [
+        {
+            "name": "evford-native",
+            "displayName": "evford on Windows, Linux or macOS",
+            "inherits": [
+                "config-binaryDir",
+                "config-debug",
+                "config-ninja",
+                "config-vcpkg"
+            ],
+            "cacheVariables": {
+                "X_VCPKG_APPLOCAL_DEPS_INSTALL": true
+            }
+        },
+        {
+            "name": "evford-web",
+            "displayName": "evford for WebAssembly (activate emsdk first)",
+            "inherits": [
+                "config-binaryDir",
+                "config-release",
+                "config-ninja",
+                "config-vcpkg",
+                "compiler-emcc",
+                "target-wasm32-emscripten"
+            ]
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "evford-native",
+            "configurePreset": "evford-native"
+        },
+        {
+            "name": "evford-web",
+            "configurePreset": "evford-web"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "evford-native",
+            "configurePreset": "evford-native",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

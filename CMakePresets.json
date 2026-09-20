@@ -1,6 +1,7 @@
 {
     "version": 7,
     "include": [
+        "./cmake/platform/evford.json",
         "./cmake/platform/android.json",
         "./cmake/platform/linux.json",
         "./cmake/platform/macos.json",

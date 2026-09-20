@@ -1,6 +1,6 @@
 # Run before compiler detection: CMake does not discover the MSVC STL module
 # sources for clang-cl. Clang must compile its own copies of these modules.
-if(CMAKE_CXX_STDLIB_MODULES_JSON)
+if(NOT CMAKE_CXX_MODULE_STD OR CMAKE_CXX_STDLIB_MODULES_JSON)
     return()
 endif()
 

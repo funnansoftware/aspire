@@ -1,0 +1,108 @@
+plugins {
+    id 'com.android.application'
+}
+
+def repositoryRoot = rootProject.file('../../..').canonicalFile
+def vcpkgRoot = new File(repositoryRoot, 'vcpkg')
+def installedDir = layout.buildDirectory.dir('vcpkg_installed')
+def sdlJar = layout.buildDirectory.file('dependencies/SDL3.jar')
+def triplets = ['arm64-android-sdl', 'x64-android-sdl']
+
+// Install both ABIs before CMake or javac resolves SDL. vcpkg manages downloads,
+// versions and binary caching for the Java support and the native library alike.
+def installSdl = tasks.register('installSdl') {
+    group = 'build setup'
+    description = 'Install SDL3 and its Java support using the repository vcpkg manifest.'
+    outputs.file(sdlJar)
+    // Let vcpkg check port/toolchain changes and its own ABI cache on every build.
+    outputs.upToDateWhen { false }
+
+    doLast {
+        def windows = System.getProperty('os.name').toLowerCase().contains('windows')
+        def executable = new File(vcpkgRoot, windows ? 'vcpkg.exe' : 'vcpkg')
+        if (!executable.isFile()) {
+            throw new GradleException('Bootstrap the repository vcpkg submodule before building Android; see README.md.')
+        }
+        def sdk = android.sdkDirectory
+        def ndk = new File(sdk, "ndk/${android.ndkVersion}")
+        if (!ndk.isDirectory()) {
+            throw new GradleException("Install Android NDK ${android.ndkVersion} in ${sdk} first.")
+        }
+        triplets.each { triplet ->
+            // Manifest installs prune unrequested triplets, so each ABI needs
+            // its own installation root.
+            exec {
+                workingDir repositoryRoot
+                environment 'ANDROID_HOME', sdk.absolutePath
+                environment 'ANDROID_NDK_HOME', ndk.absolutePath
+                environment 'JAVA_HOME', System.getProperty('java.home')
+                commandLine executable.absolutePath, 'install',
+                    "--triplet=${triplet}",
+                    "--x-manifest-root=${repositoryRoot}",
+                    "--x-install-root=${new File(installedDir.get().asFile, triplet)}",
+                    "--overlay-triplets=${new File(repositoryRoot, 'cmake/triplets')}"
+            }
+        }
+        def jars = fileTree(new File(installedDir.get().asFile, "${triplets.first()}/${triplets.first()}/share/java/SDL3")) {
+            include 'SDL3-*.jar'
+            exclude '*-sources.jar', '*-javadoc.jar'
+        }.files
+        if (jars.size() != 1) {
+            throw new GradleException('vcpkg must provide exactly one SDL3 Java JAR. Check that JDK 17 and Android SDK platform 36 are installed.')
+        }
+        copy {
+            from jars.first()
+            into sdlJar.get().asFile.parentFile
+            rename { 'SDL3.jar' }
+        }
+    }
+}
+
+android {
+    namespace 'org.aspire.evford'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+    ndkVersion '28.2.13676358'
+
+    defaultConfig {
+        applicationId 'org.aspire.evford'
+        minSdk 21
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared', '-DBUILD_TESTING=OFF',
+                    "-DEVFORD_VCPKG_INSTALLED_DIR=${installedDir.get().asFile}"
+                targets 'evford'
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('../CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+}
+
+// AGP packages imported shared libraries discovered through CMake's file API.
+// Only the Java JAR needs an explicit Gradle dependency; there is no separate AAR.
+dependencies {
+    implementation files(sdlJar).builtBy(installSdl)
+}
+
+tasks.configureEach {
+    if (name.startsWith('configureCMake')) {
+        dependsOn installSdl
+    }
+}

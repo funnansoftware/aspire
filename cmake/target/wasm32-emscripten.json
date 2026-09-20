@@ -5,6 +5,7 @@
             "name": "target-wasm32-emscripten",
             "hidden": true,
             "cacheVariables": {
+                "BUILD_TESTING": false,
                 "VCPKG_TARGET_TRIPLET": "wasm32-emscripten"
             }
         }
