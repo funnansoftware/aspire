@@ -6,6 +6,8 @@ pluginManagement {
     }
 }
 
+throw new GradleException('Android builds are temporarily disabled pending NDK import std support. The project files are retained for future use.')
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {

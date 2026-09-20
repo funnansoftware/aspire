@@ -13,6 +13,7 @@
     "configurePresets": [
         {
             "name": "arm64-android-clang-debug",
+            "hidden": true,
             "inherits": [
                 "config-binaryDir",
                 "config-debug",
@@ -24,6 +25,7 @@
         },
         {
             "name": "arm64-android-clang-release",
+            "hidden": true,
             "inherits": [
                 "config-binaryDir",
                 "config-release",
@@ -35,6 +37,7 @@
         },
         {
             "name": "x64-android-clang-debug",
+            "hidden": true,
             "inherits": [
                 "config-binaryDir",
                 "config-debug",
@@ -46,6 +49,7 @@
         },
         {
             "name": "x64-android-clang-release",
+            "hidden": true,
             "inherits": [
                 "config-binaryDir",
                 "config-release",
@@ -59,18 +63,22 @@
     "buildPresets": [
         {
             "name": "arm64-android-clang-debug",
+            "hidden": true,
             "configurePreset": "arm64-android-clang-debug"
         },
         {
             "name": "arm64-android-clang-release",
+            "hidden": true,
             "configurePreset": "arm64-android-clang-release"
         },
         {
             "name": "x64-android-clang-debug",
+            "hidden": true,
             "configurePreset": "x64-android-clang-debug"
         },
         {
             "name": "x64-android-clang-release",
+            "hidden": true,
             "configurePreset": "x64-android-clang-release"
         }
     ]

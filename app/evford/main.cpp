@@ -2,14 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <charconv>
-#include <cstdint>
-#include <new>
-#include <string_view>
-#include <system_error>
+import std;
 
 #include "world.hpp"
 

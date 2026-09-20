@@ -1,5 +1,16 @@
 # Evford on Android
 
+**Temporarily disabled.** Android configure and build presets are hidden and
+cannot be invoked. The CMake and Gradle entry points reject Android builds, and
+APK targets are no longer registered by the root project. All platform files,
+presets, and triplets remain for future use.
+
+Evford now requires `import std;` without a header fallback. Re-enabling Android
+requires compatible NDK standard-library module sources and newer CMake
+integration, then removing the temporary guards and unhiding the presets.
+The setup instructions and validation below describe the last working Android
+configuration, before it was disabled.
+
 This Gradle project packages the same C++ example as the desktop and WebAssembly
 builds. Its CMake entry point adds `app/evford`, builds `evford` as
 `libmain.so`, and launches it through `EvfordActivity`, a small `SDLActivity`
@@ -81,8 +92,9 @@ libraries in the APK. Both Debug and Release use their corresponding vcpkg
 libraries.
 
 The task runs before Java compilation and native configuration; repeated builds
-let vcpkg check its cache. The app does not need the framework's C++ module
-toolchain. SDL's Java and native integration is described in its
+let vcpkg check its cache. The configured NDK does not ship standard-library
+module sources. The former C++17 header fallback has been removed, so this
+configuration remains disabled. SDL's Java and native integration is described in its
 [Android documentation](https://wiki.libsdl.org/SDL3/README-android).
 
 ## Validation

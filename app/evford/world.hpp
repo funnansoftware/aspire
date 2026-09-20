@@ -1,8 +1,6 @@
 #pragma once
 
-#include <array>
-#include <cstddef>
-#include <cstdint>
+import std;
 
 namespace evford
 {

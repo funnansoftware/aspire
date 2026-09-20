@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
+message(FATAL_ERROR "Android builds are temporarily disabled pending NDK import std support.")
 project(evford-android LANGUAGES CXX)
 
 # Gradle installs SDL through vcpkg before configuring this project. Keep the

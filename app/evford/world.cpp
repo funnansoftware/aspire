@@ -1,7 +1,6 @@
 #include "world.hpp"
 
-#include <algorithm>
-#include <cmath>
+import std;
 
 namespace evford
 {

@@ -1,9 +1,6 @@
 #include "world.hpp"
 
-#include <cmath>
-#include <cstdlib>
-#include <iostream>
-#include <limits>
+import std;
 
 namespace
 {
@@ -12,7 +9,7 @@ namespace
         if (!condition)
         {
             std::cerr << "FAIL: " << message << '\n';
-            std::exit(EXIT_FAILURE);
+            std::exit(1);
         }
     }
 
@@ -95,5 +92,5 @@ int main()
     evford::reset(world);
     require(equal(world, same), "reset restores the initial scene after simulation");
     std::cout << "Evford world tests passed\n";
-    return EXIT_SUCCESS;
+    return 0;
 }

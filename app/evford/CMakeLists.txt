@@ -1,23 +1,12 @@
-cmake_minimum_required(VERSION 3.22)
-
-# This directory also serves as the portable standalone entry point.
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    project(evford LANGUAGES CXX)
-    include(CTest)
-    include(GNUInstallDirs)
+if(ANDROID)
+    message(FATAL_ERROR "Android builds are temporarily disabled pending NDK import std support.")
 endif()
-
-# Use portable headers without requiring C++ standard-library modules.
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_MODULE_STD OFF)
-set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 find_package(SDL3 3.2 CONFIG REQUIRED)
 
 add_library(evford-world STATIC world.cpp)
 target_include_directories(evford-world PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_features(evford-world PUBLIC cxx_std_23)
 set_target_properties(evford-world PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(ANDROID)
@@ -40,16 +29,6 @@ if(EMSCRIPTEN)
     )
 elseif(NOT ANDROID)
     install(TARGETS evford RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-    if(WIN32 AND TARGET SDL3::SDL3-shared)
-        add_custom_command(TARGET evford POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                "$<TARGET_FILE:SDL3::SDL3-shared>" "$<TARGET_FILE_DIR:evford>"
-            VERBATIM
-        )
-        install(IMPORTED_RUNTIME_ARTIFACTS SDL3::SDL3-shared
-            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        )
-    endif()
 endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
