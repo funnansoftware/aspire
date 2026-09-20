@@ -15,4 +15,4 @@ include(GNUInstallDirs)
 add_subdirectory(app)
 
 include(cmake/build-apk.cmake)
-include(cmake/target/clang-tidy.cmake)
+include(cmake/clang-tidy.cmake)

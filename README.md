@@ -8,16 +8,19 @@ separate arrays for positions and velocities, with SDL3 handling rendering and
 application lifecycle. It includes build paths for Windows, Linux, macOS,
 Android, and WebAssembly.
 
-With CMake 4.4.3+, Ninja, a C++17 compiler, and the vcpkg submodule bootstrapped:
+Presets are named `<architecture>-<platform>-<compiler>-<configuration>`.
+With CMake 4.4.3+, Ninja, a C++17 compiler, and the vcpkg submodule bootstrapped,
+choose the preset for your platform. For example, on an ARM64 Mac:
 
 ```sh
-cmake --preset evford-native
-cmake --build --preset evford-native
-ctest --preset evford-native
-cmake --install build/evford-native
+cmake --preset arm64-macos-clang-debug
+cmake --build --preset arm64-macos-clang-debug
+ctest --preset arm64-macos-clang-debug
+cmake --install build/arm64-macos-clang-debug
 ```
 
-Run `build/evford-native/installed/bin/evford` (`evford.exe` on Windows).
+Use `x64-windows-msvc-debug` on Windows or `x64-linux-clang-debug` on Linux.
+Run `build/<preset>/installed/bin/evford` (`evford.exe` on Windows).
 Space, click, or tap pauses; R resets; Escape exits.
 
 All presets build `evford`; SDL3 is the only application dependency in the vcpkg

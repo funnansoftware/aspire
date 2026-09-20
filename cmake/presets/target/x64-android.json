@@ -1,0 +1,15 @@
+{
+    "version": 7,
+    "configurePresets": [
+        {
+            "name": "target-x64-android",
+            "hidden": true,
+            "cacheVariables": {
+                "BUILD_TESTING": false,
+                "ANDROID_ABI": "x86_64",
+                "ANDROID_PLATFORM": "android-21",
+                "VCPKG_TARGET_TRIPLET": "x64-android-sdl"
+            }
+        }
+    ]
+}

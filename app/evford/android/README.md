@@ -44,6 +44,24 @@ connected with USB debugging enabled. The APK is written to
 Android Studio and run the `app` configuration. `assembleRelease` creates an
 unsigned release APK; configure signing before distributing it.
 
+## Native CMake presets
+
+The root presets are named for the Android target architecture, and can run
+on Windows, Linux, or macOS. Set `ANDROID_HOME`, `ANDROID_NDK_HOME` (the NDK
+28.2.13676358 directory), and `JAVA_HOME` (JDK 17), then use:
+
+```sh
+cmake --preset arm64-android-clang-debug
+cmake --build --preset arm64-android-clang-debug
+```
+
+Use `x64-android-clang-debug` for x86_64, or the corresponding `release`
+preset. These build native libraries using the same custom vcpkg triplets and
+API 21 minimum as Gradle. To package an APK, use Gradle as above or build the
+`apk-debug` / `apk-release` target from the configured CMake build. APK targets
+package both Android ABIs. Cross-compilation presets do not expose native
+CTest runners.
+
 ## SDL dependency
 
 The `installSdl` task invokes the repository's vcpkg executable and SDL3-only

@@ -1,0 +1,77 @@
+{
+    "version": 7,
+    "include": [
+        "../compiler/android-ndk.json",
+        "../config/binaryDir.json",
+        "../config/debug.json",
+        "../config/ninja.json",
+        "../config/release.json",
+        "../config/vcpkg.json",
+        "../target/arm64-android.json",
+        "../target/x64-android.json"
+    ],
+    "configurePresets": [
+        {
+            "name": "arm64-android-clang-debug",
+            "inherits": [
+                "config-binaryDir",
+                "config-debug",
+                "config-ninja",
+                "config-vcpkg",
+                "compiler-android-ndk",
+                "target-arm64-android"
+            ]
+        },
+        {
+            "name": "arm64-android-clang-release",
+            "inherits": [
+                "config-binaryDir",
+                "config-release",
+                "config-ninja",
+                "config-vcpkg",
+                "compiler-android-ndk",
+                "target-arm64-android"
+            ]
+        },
+        {
+            "name": "x64-android-clang-debug",
+            "inherits": [
+                "config-binaryDir",
+                "config-debug",
+                "config-ninja",
+                "config-vcpkg",
+                "compiler-android-ndk",
+                "target-x64-android"
+            ]
+        },
+        {
+            "name": "x64-android-clang-release",
+            "inherits": [
+                "config-binaryDir",
+                "config-release",
+                "config-ninja",
+                "config-vcpkg",
+                "compiler-android-ndk",
+                "target-x64-android"
+            ]
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "arm64-android-clang-debug",
+            "configurePreset": "arm64-android-clang-debug"
+        },
+        {
+            "name": "arm64-android-clang-release",
+            "configurePreset": "arm64-android-clang-release"
+        },
+        {
+            "name": "x64-android-clang-debug",
+            "configurePreset": "x64-android-clang-debug"
+        },
+        {
+            "name": "x64-android-clang-release",
+            "configurePreset": "x64-android-clang-release"
+        }
+    ]
+}
