@@ -62,7 +62,8 @@ python3 -m http.server 8000 --directory build/wasm32-emscripten-emcc-release/ins
 
 Open [localhost:8000/evford.html](http://localhost:8000/evford.html). The
 WebAssembly presets point `EMSDK` and the Emscripten tools at `.emsdk`, so an
-activated system SDK is not needed and is not used.
+activated system SDK is not needed and is not used. Don't run `emsdk install`
+inside the `emsdk` submodule; the presets never look there.
 
 ## Installing on Windows
 
