@@ -1,0 +1,45 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - clang-format-check
+          - clang-tidy-diff
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # clang-tidy-diff compares against origin/main, which needs history.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/get-vcpkg
+        with:
+          bootstrap: 'false'
+
+      - name: ${{ matrix.target }}
+        uses: ./.github/actions/devcontainer
+        with:
+          run: |
+            git config --global --add safe.directory "$GITHUB_WORKSPACE"
+            ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+            cmake --preset x64-linux-clang-debug
+            cmake --build --preset x64-linux-clang-debug --target ${{ matrix.target }}
