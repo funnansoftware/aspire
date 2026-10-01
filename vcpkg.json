@@ -5,6 +5,7 @@
     "description": "Personal integration and rendering engine.",
     "homepage": "https://github.com/funnansoftware/aspire",
     "dependencies": [
-        "sdl3"
+        "sdl3",
+        "gtest"
     ]
 }

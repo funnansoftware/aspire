@@ -1,6 +1,5 @@
 add_subdirectory(core)
 add_subdirectory(parser)
-add_subdirectory(raylib)
 add_subdirectory(string)
 
 project(aspire)
@@ -13,7 +12,6 @@ target_sources(${PROJECT_NAME} PUBLIC
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    aspire-raylib
     aspire-parser
     aspire-core
     aspire-string

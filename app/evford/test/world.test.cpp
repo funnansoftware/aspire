@@ -1,3 +1,5 @@
+#include <gtest/gtest.h>
+
 #include "world.hpp"
 
 import std;
@@ -6,51 +8,40 @@ namespace
 {
     constexpr float Tolerance = 0.0001F;
 
-    auto Require(bool condition, const char* message) -> void
-    {
-        if (!condition)
-        {
-            std::cerr << "FAIL: " << message << '\n';
-            std::exit(1);
-        }
-    }
-
     auto Equal(const evford::World& a, const evford::World& b) -> bool
     {
         return a.x == b.x && a.y == b.y && a.velocityX == b.velocityX && a.velocityY == b.velocityY;
     }
 
-    auto Near(float a, float b) -> bool
-    {
-        return std::abs(a - b) < Tolerance;
-    }
-
-    auto RequireBounds(const evford::World& world) -> void
+    auto ExpectBounds(const evford::World& world) -> void
     {
         for (std::size_t i = 0; i < evford::ParticleCount; ++i)
         {
-            Require(world.x.at(i) >= evford::FieldLeft && world.x.at(i) <= evford::FieldRight - evford::ParticleSize,
-                    "particle remains inside horizontal bounds");
-            Require(world.y.at(i) >= evford::FieldTop && world.y.at(i) <= evford::FieldBottom - evford::ParticleSize,
-                    "particle remains inside vertical bounds");
+            EXPECT_GE(world.x.at(i), evford::FieldLeft);
+            EXPECT_LE(world.x.at(i), evford::FieldRight - evford::ParticleSize);
+            EXPECT_GE(world.y.at(i), evford::FieldTop);
+            EXPECT_LE(world.y.at(i), evford::FieldBottom - evford::ParticleSize);
         }
     }
 }
 
-// Standard streams throw only when an exception mask is set, which these tests never do.
-// NOLINTNEXTLINE(bugprone-exception-escape)
-auto main() -> int
+TEST(World, ResetIsDeterministicPerSeed)
 {
     evford::World world;
     evford::World same;
     evford::Reset(world);
     evford::Reset(same);
-    Require(Equal(world, same), "identical seeds produce identical worlds");
-    RequireBounds(world);
+    EXPECT_TRUE(Equal(world, same));
+    ExpectBounds(world);
     evford::Reset(same, evford::InitialSeed + 1U);
-    Require(!Equal(world, same), "different seeds produce different worlds");
+    EXPECT_FALSE(Equal(world, same));
+}
 
-    // Check expected integration and reflected overshoot at both pairs of walls.
+TEST(World, AdvanceIntegratesAndReflectsAtWalls)
+{
+    evford::World world;
+    evford::Reset(world);
+
     // Particles 1 and 2 start one pixel from a wall and travel 2.5 pixels toward it.
     constexpr float start = 200.0F;
     constexpr float velocityX = 40.0F;
@@ -73,43 +64,60 @@ auto main() -> int
     world.velocityX.at(2) = wallSpeed;
     world.velocityY.at(2) = wallSpeed;
     evford::Advance(world, stepSeconds);
-    Require(Near(world.x.at(0), expectedX) && Near(world.y.at(0), expectedY), "position advances by velocity times elapsed seconds");
-    Require(Near(world.x.at(1), evford::FieldLeft + overshoot) && Near(world.y.at(1), evford::FieldTop + overshoot),
-            "low wall collision retains overshoot");
-    Require(world.velocityX.at(1) == wallSpeed && world.velocityY.at(1) == wallSpeed, "low walls reflect velocity inward");
-    Require(Near(world.x.at(2), evford::FieldRight - evford::ParticleSize - overshoot)
-                && Near(world.y.at(2), evford::FieldBottom - evford::ParticleSize - overshoot),
-            "high wall collision retains overshoot");
-    Require(world.velocityX.at(2) == -wallSpeed && world.velocityY.at(2) == -wallSpeed, "high walls reflect velocity inward");
 
+    EXPECT_NEAR(world.x.at(0), expectedX, Tolerance);
+    EXPECT_NEAR(world.y.at(0), expectedY, Tolerance);
+    EXPECT_NEAR(world.x.at(1), evford::FieldLeft + overshoot, Tolerance);
+    EXPECT_NEAR(world.y.at(1), evford::FieldTop + overshoot, Tolerance);
+    EXPECT_EQ(world.velocityX.at(1), wallSpeed);
+    EXPECT_EQ(world.velocityY.at(1), wallSpeed);
+    EXPECT_NEAR(world.x.at(2), evford::FieldRight - evford::ParticleSize - overshoot, Tolerance);
+    EXPECT_NEAR(world.y.at(2), evford::FieldBottom - evford::ParticleSize - overshoot, Tolerance);
+    EXPECT_EQ(world.velocityX.at(2), -wallSpeed);
+    EXPECT_EQ(world.velocityY.at(2), -wallSpeed);
+}
+
+TEST(World, AdvanceIgnoresInvalidIntervalsAndClampsStalls)
+{
+    evford::World world;
+    evford::World same;
+    evford::Reset(world);
     same = world;
     evford::Advance(world, 0.0F);
     evford::Advance(world, -1.0F);
     evford::Advance(world, std::numeric_limits<float>::quiet_NaN());
     evford::Advance(world, std::numeric_limits<float>::infinity());
-    Require(Equal(world, same), "zero, negative and non-finite intervals do nothing");
+    EXPECT_TRUE(Equal(world, same));
+
     evford::Advance(world, 100.0F);
     evford::Advance(same, evford::MaxFrameSeconds);
-    Require(Equal(world, same), "long stalls are clamped");
+    EXPECT_TRUE(Equal(world, same));
+}
 
+TEST(World, LongSimulationStaysInBoundsAndPreservesSpeed)
+{
+    evford::World world;
+    evford::World initial;
     evford::Reset(world);
-    evford::Reset(same);
+    evford::Reset(initial);
+
     // Simulate 100 seconds at the app's fixed step.
     constexpr int steps = 12000;
     constexpr float fixedStepSeconds = 1.0F / 120.0F;
     for (int step = 0; step < steps; ++step)
     {
         evford::Advance(world, fixedStepSeconds);
-        RequireBounds(world);
+        ExpectBounds(world);
+        if (::testing::Test::HasFailure())
+        {
+            return;
+        }
     }
     for (std::size_t i = 0; i < evford::ParticleCount; ++i)
     {
-        Require(
-            std::abs(world.velocityX.at(i)) == std::abs(same.velocityX.at(i)) && std::abs(world.velocityY.at(i)) == std::abs(same.velocityY.at(i)),
-            "wall collisions preserve speed over a long simulation");
+        EXPECT_EQ(std::abs(world.velocityX.at(i)), std::abs(initial.velocityX.at(i)));
+        EXPECT_EQ(std::abs(world.velocityY.at(i)), std::abs(initial.velocityY.at(i)));
     }
     evford::Reset(world);
-    Require(Equal(world, same), "reset restores the initial scene after simulation");
-    std::cout << "Evford world tests passed\n";
-    return 0;
+    EXPECT_TRUE(Equal(world, initial));
 }

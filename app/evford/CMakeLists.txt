@@ -32,9 +32,11 @@ elseif(NOT ANDROID)
 endif()
 
 if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    find_package(GTest CONFIG REQUIRED)
+    include(GoogleTest)
     add_executable(evford-world-test test/world.test.cpp)
-    target_link_libraries(evford-world-test PRIVATE evford-world)
-    add_test(NAME evford-world COMMAND evford-world-test)
+    target_link_libraries(evford-world-test PRIVATE evford-world GTest::gtest GTest::gtest_main)
+    gtest_discover_tests(evford-world-test)
     add_test(NAME evford-smoke COMMAND evford --frames=3)
     set_tests_properties(evford-smoke PROPERTIES
         ENVIRONMENT "SDL_VIDEO_DRIVER=dummy;SDL_RENDER_DRIVER=software"
