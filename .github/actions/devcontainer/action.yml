@@ -37,6 +37,7 @@ runs:
           --workdir "$GITHUB_WORKSPACE" \
           --env HOME=/tmp \
           --env CI=true \
+          --env GITHUB_WORKSPACE \
           --env VCPKG_ROOT \
           --env VCPKG_DEFAULT_BINARY_CACHE \
           --env VCPKG_BINARY_SOURCES \
