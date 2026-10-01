@@ -16,4 +16,5 @@ include(GNUInstallDirs)
 add_subdirectory(app)
 
 # Android packaging is retained in cmake/build-apk.cmake but temporarily disabled.
+include(cmake/clang-format.cmake)
 include(cmake/clang-tidy.cmake)
