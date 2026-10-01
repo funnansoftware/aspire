@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 
 import std;
-import aspire.core.object;
-import aspire.core.event;
+import aspire.core;
 
 namespace
 {
@@ -44,7 +43,7 @@ TEST(Object, addChild)
     parent->addChild(child);
 
     auto children = parent->getChildren();
-    ASSERT_EQ(children.size(), 1);
+    ASSERT_EQ(std::size(children), 1);
     EXPECT_EQ(children.front(), child);
 }
 
@@ -58,7 +57,7 @@ TEST(Object, getChildren)
     parent->addChild(child2);
 
     auto children = parent->getChildren();
-    ASSERT_EQ(children.size(), 2);
+    ASSERT_EQ(std::size(children), 2);
     EXPECT_EQ(children.front(), child1);
     EXPECT_EQ(children.back(), child2);
 }
@@ -75,7 +74,7 @@ TEST(Object, remove)
     child->remove();
 
     auto children = parent->getChildren();
-    ASSERT_EQ(children.size(), 0);
+    ASSERT_EQ(std::size(children), 0);
     EXPECT_EQ(child->getParent(), nullptr);
 }
 
@@ -89,11 +88,11 @@ TEST(Object, getChildrenOfType)
     parent->addChild(child2);
 
     auto testObjectChildren = parent->getChildren<TestObject>();
-    ASSERT_EQ(testObjectChildren.size(), 1);
+    ASSERT_EQ(std::size(testObjectChildren), 1);
     EXPECT_EQ(testObjectChildren.front(), child1);
 
     auto testObject2Children = parent->getChildren<TestObject2>();
-    ASSERT_EQ(testObject2Children.size(), 1);
+    ASSERT_EQ(std::size(testObject2Children), 1);
     EXPECT_EQ(testObject2Children.front(), child2);
 }
 
@@ -101,14 +100,14 @@ TEST(Object, getProperties)
 {
     auto obj = std::make_shared<TestObjectWithProperty>();
     auto properties = obj->getProperties();
-    ASSERT_EQ(properties.size(), 1);
+    ASSERT_EQ(std::size(properties), 1);
 }
 
 TEST(Object, getPropertyNameAndValue)
 {
     auto obj = std::make_shared<TestObjectWithProperty>();
     auto properties = obj->getProperties();
-    ASSERT_EQ(properties.size(), 1);
+    ASSERT_EQ(std::size(properties), 1);
     EXPECT_EQ(properties.front()->name(), "value");
     EXPECT_EQ(properties.front()->getValueAs<int>(), InitialPropertyValue);
 }

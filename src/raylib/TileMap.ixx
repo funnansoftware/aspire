@@ -2,13 +2,12 @@ module;
 
 #include <raylib.h>
 
-export module aspire.raylib.tilemap;
+export module aspire.raylib:tilemap;
 
 import std;
-import aspire.core.engine;
-import aspire.core.object;
-import aspire.raylib.node;
-import aspire.raylib.textureloader;
+import aspire.core;
+import :node;
+import :textureloader;
 
 export namespace aspire::raylib
 {
@@ -206,7 +205,7 @@ export namespace aspire::raylib
             std::queue<Tile> toVisit;
             toVisit.push(start);
 
-            while (!toVisit.empty())
+            while (!std::empty(toVisit))
             {
                 const auto current = toVisit.front();
                 toVisit.pop();

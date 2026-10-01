@@ -1,4 +1,4 @@
-export module aspire.string.concepts;
+export module aspire.string:concepts;
 
 import std;
 

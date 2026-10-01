@@ -1,7 +1,7 @@
-export module aspire.core.event;
+export module aspire.core:event;
 
 import std;
-import aspire.core.vec2;
+import :vec2;
 
 export namespace aspire::core
 {

@@ -2,10 +2,10 @@ module;
 
 #include <nameof.hpp>
 
-export module aspire.core.objectfactory;
+export module aspire.core:objectfactory;
 
 import std;
-import aspire.core.object;
+import :object;
 
 export namespace aspire::core
 {
@@ -58,7 +58,7 @@ export namespace aspire::core
         template <ObjectType T>
         auto registerObject(std::string_view name = {}) -> void
         {
-            const auto key = name.empty() ? std::string{typeName<T>()} : std::string{name};
+            const auto key = std::empty(name) ? std::string{typeName<T>()} : std::string{name};
             creators_[key] = std::make_unique<TemplateCreator<T>>();
         }
 
@@ -92,15 +92,15 @@ export namespace aspire::core
             constexpr std::string_view enumPrefix = "enum ";
             if (name.starts_with(classPrefix))
             {
-                name.remove_prefix(classPrefix.size());
+                name.remove_prefix(std::size(classPrefix));
             }
             else if (name.starts_with(structPrefix))
             {
-                name.remove_prefix(structPrefix.size());
+                name.remove_prefix(std::size(structPrefix));
             }
             else if (name.starts_with(enumPrefix))
             {
-                name.remove_prefix(enumPrefix.size());
+                name.remove_prefix(std::size(enumPrefix));
             }
 
             return name;

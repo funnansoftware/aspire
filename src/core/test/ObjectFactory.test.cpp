@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 #include <nameof.hpp>
 
-import aspire.core.object;
-import aspire.core.objectfactory;
+import aspire.core;
 
 namespace
 {

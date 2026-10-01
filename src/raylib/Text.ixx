@@ -3,13 +3,11 @@ module;
 #include <raylib.h>
 #include <magic_enum/magic_enum.hpp>
 
-export module aspire.raylib.text;
+export module aspire.raylib:text;
 
 import std;
-import aspire.core.object;
-import aspire.core.overloaded;
-import aspire.core.event;
-import aspire.raylib.node;
+import aspire.core;
+import :node;
 
 export namespace aspire::raylib
 {

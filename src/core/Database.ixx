@@ -1,10 +1,8 @@
-module;
-#include <string>
-#include <unordered_map>
-export module aspire.core.database;
+export module aspire.core:database;
 
-import aspire.core.object;
-import aspire.core.data;
+import std;
+import :object;
+import :data;
 
 export namespace aspire::core
 {

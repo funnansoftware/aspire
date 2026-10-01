@@ -2,12 +2,12 @@ module;
 
 #include <cstdlib>
 
-export module aspire.core.engine;
+export module aspire.core:engine;
 
 import std;
-import aspire.core.object;
-import aspire.core.overloaded;
-import aspire.core.event;
+import :object;
+import :overloaded;
+import :event;
 
 export namespace aspire::core
 {
@@ -45,10 +45,10 @@ export namespace aspire::core
 
                 // Physics.
                 auto count = 0;
-                while (accumulate_ >= IntervalFixed && count < FrameLimit)
+                while (accumulate_ >= intervalFixed_ && count < frameLimit_)
                 {
-                    updateFixed(std::chrono::duration_cast<std::chrono::duration<float>>(IntervalFixed).count());
-                    accumulate_ -= IntervalFixed;
+                    updateFixed(std::chrono::duration_cast<std::chrono::duration<float>>(intervalFixed_).count());
+                    accumulate_ -= intervalFixed_;
                     ++count;
                 }
 
@@ -86,8 +86,8 @@ export namespace aspire::core
         }
 
     private:
-        static constexpr int FrameLimit{5};
-        static constexpr std::chrono::steady_clock::duration IntervalFixed{std::chrono::milliseconds(10)};
+        static constexpr int frameLimit_{5};
+        static constexpr std::chrono::steady_clock::duration intervalFixed_{std::chrono::milliseconds(10)};
 
         std::vector<aspire::core::Event> events_;
 

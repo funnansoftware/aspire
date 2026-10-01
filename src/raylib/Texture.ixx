@@ -2,14 +2,12 @@ module;
 
 #include <raylib.h>
 
-export module aspire.raylib.texture;
+export module aspire.raylib:texture;
 
 import std;
-import aspire.core.object;
-import aspire.core.engine;
-import aspire.core.property;
-import aspire.raylib.node;
-import aspire.raylib.textureloader;
+import aspire.core;
+import :node;
+import :textureloader;
 
 export namespace aspire::raylib
 {

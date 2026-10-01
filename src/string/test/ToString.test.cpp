@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 import std;
-import aspire.string.tostring;
+import aspire.string;
 
 TEST(ToString, ToString)
 {

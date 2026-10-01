@@ -5,12 +5,6 @@
     "description": "Personal integration and rendering engine.",
     "homepage": "https://github.com/funnansoftware/aspire",
     "dependencies": [
-        "gtest",
-        "glfw3",
-        "raylib",
-        "nlohmann-json",
-        "magic-enum",
-        "palsigslot",
-        "nameof"
+        "sdl3"
     ]
 }

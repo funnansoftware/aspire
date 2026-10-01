@@ -6,13 +6,8 @@ module;
 export module sl.viewworld;
 
 import std;
-import aspire.core.object;
-import aspire.core.overloaded;
-import aspire.core.event;
-import aspire.core.vec2;
-import aspire.raylib.node;
-import aspire.raylib.texture;
-import aspire.raylib.tilemap;
+import aspire.core;
+import aspire.raylib;
 
 export namespace sl
 {

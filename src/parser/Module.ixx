@@ -1,2 +1,3 @@
 export module aspire.parser;
-export import aspire.parser.json;
+
+export import :json;

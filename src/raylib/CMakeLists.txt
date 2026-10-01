@@ -6,9 +6,9 @@ target_sources(${PROJECT_NAME} PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
         Module.ixx
         Node.ixx
+        Text.ixx
         Texture.ixx
         TextureLoader.ixx
-        Text.ixx
         TileMap.ixx
         Window.ixx
 )

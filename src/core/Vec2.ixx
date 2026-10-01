@@ -1,4 +1,4 @@
-export module aspire.core.vec2;
+export module aspire.core:vec2;
 
 export namespace aspire::core
 {

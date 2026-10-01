@@ -2,13 +2,10 @@ module;
 
 #include <raylib.h>
 
-export module aspire.raylib.window;
+export module aspire.raylib:window;
 
 import std;
-import aspire.core.object;
-import aspire.core.engine;
-import aspire.core.event;
-import aspire.core.overloaded;
+import aspire.core;
 
 export namespace aspire::raylib
 {

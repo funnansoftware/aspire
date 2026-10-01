@@ -7,8 +7,8 @@ target_sources(${PROJECT_NAME} PUBLIC
         Concepts.ixx
         ErrorCode.ixx
         FromString.ixx
+        Module.ixx
         ToString.ixx
-        String.ixx
 )
 
 add_subdirectory(test)

@@ -1,6 +1,6 @@
-export module aspire.core.data;
+export module aspire.core:data;
 
-import aspire.core.object;
+import :object;
 
 export namespace aspire::core
 {

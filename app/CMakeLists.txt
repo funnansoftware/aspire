@@ -1,1 +1,1 @@
-add_subdirectory(srd-lite)
+add_subdirectory(evford)

@@ -1,0 +1,105 @@
+# Evford on Android
+
+**Temporarily disabled.** Android configure and build presets are hidden and
+cannot be invoked. The CMake and Gradle entry points reject Android builds, and
+APK targets are no longer registered by the root project. All platform files,
+presets, and triplets remain for future use.
+
+Evford now requires `import std;` without a header fallback. Re-enabling Android
+requires compatible NDK standard-library module sources and newer CMake
+integration, then removing the temporary guards and unhiding the presets.
+The setup instructions and validation below describe the last working Android
+configuration, before it was disabled.
+
+This Gradle project packages the same C++ example as the desktop and WebAssembly
+builds. Its CMake entry point adds `app/evford`, builds `evford` as
+`libmain.so`, and launches it through `EvfordActivity`, a small `SDLActivity`
+subclass. The default APK includes `arm64-v8a` and `x86_64` libraries and runs on
+Android 5.0 (API 21) or newer.
+
+## Prerequisites
+
+- JDK 17.
+- Android SDK platform 36, build tools 36.0.0, and platform tools.
+- Android NDK 28.2.13676358 and SDK CMake 3.22.1.
+- The repository's initialized and bootstrapped vcpkg submodule.
+- Network access on the first build for Gradle, its plugins, and SDL.
+
+Install the Android packages with Android Studio's SDK Manager, or use:
+
+```sh
+sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" \
+  "ndk;28.2.13676358" "cmake;3.22.1"
+```
+
+Set `ANDROID_HOME` to your SDK directory, or add `sdk.dir=/absolute/path/to/sdk`
+to an untracked `local.properties` in this directory. Set `JAVA_HOME` to JDK 17
+if another Java version is the system default.
+
+## Build and run
+
+From the repository root:
+
+```sh
+git submodule update --init --recursive
+./vcpkg/bootstrap-vcpkg.sh
+cd app/evford/android
+./gradlew assembleDebug
+./gradlew installDebug
+adb shell am start -n org.aspire.evford/.EvfordActivity
+```
+
+Use `bootstrap-vcpkg.bat` and `gradlew.bat` on Windows. `installDebug` requires an emulator or a device
+connected with USB debugging enabled. The APK is written to
+`app/build/outputs/apk/debug/app-debug.apk`. You can also open this directory in
+Android Studio and run the `app` configuration. `assembleRelease` creates an
+unsigned release APK; configure signing before distributing it.
+
+## Native CMake presets
+
+The root presets are named for the Android target architecture, and can run
+on Windows, Linux, or macOS. Set `ANDROID_HOME`, `ANDROID_NDK_HOME` (the NDK
+28.2.13676358 directory), and `JAVA_HOME` (JDK 17), then use:
+
+```sh
+cmake --preset arm64-android-clang-debug
+cmake --build --preset arm64-android-clang-debug
+```
+
+Use `x64-android-clang-debug` for x86_64, or the corresponding `release`
+preset. These build native libraries using the same custom vcpkg triplets and
+API 21 minimum as Gradle. To package an APK, use Gradle as above or build the
+`apk-debug` / `apk-release` target from the configured CMake build. APK targets
+package both Android ABIs. Cross-compilation presets do not expose native
+CTest runners.
+
+## SDL dependency
+
+The `installSdl` task invokes the repository's vcpkg executable and SDL3-only
+root manifest. SDL's version, source checksum, patches,
+and binary cache are managed by the pinned vcpkg checkout, just as on desktop
+and WebAssembly. There is no separate SDL archive download or SDL version pin
+in Gradle.
+
+The overlay triplets in `cmake/triplets` build shared libraries for
+`arm64-v8a` and `x86_64` at API 21, and enable SDL's Java JAR. Gradle passes its
+selected SDK, NDK, and JDK to vcpkg. Each triplet has a separate installation
+root under `app/build/vcpkg_installed`, since manifest installs remove
+unrequested triplets. The generated Java JAR is copied to
+`app/build/dependencies/SDL3.jar` for Java compilation. CMake resolves
+`SDL3::SDL3` from the matching triplet, and Gradle packages the linked shared
+libraries in the APK. Both Debug and Release use their corresponding vcpkg
+libraries.
+
+The task runs before Java compilation and native configuration; repeated builds
+let vcpkg check its cache. The configured NDK does not ship standard-library
+module sources. The former C++17 header fallback has been removed, so this
+configuration remains disabled. SDL's Java and native integration is described in its
+[Android documentation](https://wiki.libsdl.org/SDL3/README-android).
+
+## Validation
+
+The debug and unsigned release APKs were built for both configured ABIs. The
+debug APK was also installed and visually checked on an arm64 Android API 34
+emulator, including touch pause and background/foreground transitions. Physical
+devices and the x86_64 emulator have not been run yet.

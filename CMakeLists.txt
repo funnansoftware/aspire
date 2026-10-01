@@ -9,12 +9,11 @@ set(CMAKE_CXX_MODULE_STD ON)
 
 project(aspire)
 
-include(cmake/build-apk.cmake)
 include(CTest)
-include(GoogleTest)
 include(GNUInstallDirs)
 
-add_subdirectory(src)
+# The legacy src/ libraries and srd-lite app are not part of the SDL3 build.
 add_subdirectory(app)
 
-include(cmake/target/clang-tidy.cmake)
+# Android packaging is retained in cmake/build-apk.cmake but temporarily disabled.
+include(cmake/clang-tidy.cmake)

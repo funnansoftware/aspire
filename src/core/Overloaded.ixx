@@ -1,4 +1,4 @@
-export module aspire.core.overloaded;
+export module aspire.core:overloaded;
 
 import std;
 
