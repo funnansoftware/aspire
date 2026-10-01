@@ -24,10 +24,15 @@ Use `x64-windows-msvc-debug` on Windows or `x64-linux-clang-debug` on Linux.
 Run `build/<preset>/installed/bin/evford` (`evford.exe` on Windows).
 Space, click, or tap pauses; R resets; Escape exits.
 
+For the Steam Deck, build `x64-steamos-gcc-release` in the
+[SteamOS devcontainer](.devcontainer/steamos/README.md), which compiles against
+Steam Runtime sniper's glibc 2.31 so the binary runs in SteamOS Desktop Mode and
+inside the Steam Linux Runtime.
+
 The example requires C++23 `import std;` and the compiler's matching
 standard-library module sources. [CI](.github/README.md) builds it with MSVC on
-Windows, Clang 22 and libc++ on Linux, Homebrew LLVM 22 on macOS, and the
-Emscripten release pinned by the `emsdk` submodule for WebAssembly. Linux Clang
+Windows, Clang 22 and libc++ on Linux, GCC 15 on SteamOS, Homebrew LLVM 22 on
+macOS, and the Emscripten release pinned by the `emsdk` submodule for WebAssembly. Linux Clang
 presets use libc++, so install Clang, clang-tools (for clang-scan-deps), libc++,
 and libc++abi from the same LLVM release, or use the
 [devcontainer](.devcontainer/Dockerfile), which also provides GCC 15 and SDL3's

@@ -1,0 +1,19 @@
+{
+    "version": 7,
+    "include": [
+        "./x64-linux.json"
+    ],
+    "configurePresets": [
+        {
+            "name": "target-x64-steamos",
+            "hidden": true,
+            "inherits": [
+                "target-x64-linux"
+            ],
+            "cacheVariables": {
+                "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+                "CMAKE_EXE_LINKER_FLAGS": "-static-libstdc++ -static-libgcc"
+            }
+        }
+    ]
+}

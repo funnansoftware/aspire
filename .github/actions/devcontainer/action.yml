@@ -5,6 +5,10 @@ inputs:
   run:
     description: Bash commands to execute in the checked-out workspace.
     required: true
+  directory:
+    description: Devcontainer directory holding the Dockerfile, used as the build context.
+    required: false
+    default: .devcontainer
 
 runs:
   using: composite
@@ -14,8 +18,8 @@ runs:
     - name: Build devcontainer image
       uses: docker/build-push-action@v6
       with:
-        context: .devcontainer
-        file: .devcontainer/Dockerfile
+        context: ${{ inputs.directory }}
+        file: ${{ inputs.directory }}/Dockerfile
         load: true
         tags: aspire-devcontainer:ci
         cache-from: type=gha,scope=devcontainer-${{ github.workflow }}

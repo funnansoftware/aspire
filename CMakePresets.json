@@ -4,6 +4,7 @@
         "./cmake/presets/platform/android.json",
         "./cmake/presets/platform/linux.json",
         "./cmake/presets/platform/macos.json",
+        "./cmake/presets/platform/steamos.json",
         "./cmake/presets/platform/wasm.json",
         "./cmake/presets/platform/windows.json"
     ]

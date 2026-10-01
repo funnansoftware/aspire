@@ -5,7 +5,38 @@
     "description": "Personal integration and rendering engine.",
     "homepage": "https://github.com/funnansoftware/aspire",
     "dependencies": [
-        "sdl3",
+        {
+            "name": "sdl3",
+            "default-features": false,
+            "features": [
+                {
+                    "name": "wayland",
+                    "platform": "linux"
+                },
+                {
+                    "name": "x11",
+                    "platform": "linux"
+                }
+            ]
+        },
         "gtest"
-    ]
+    ],
+    "default-features": [
+        "ibus"
+    ],
+    "features": {
+        "ibus": {
+            "description": "IBus input-method support for SDL3 on Linux. Its D-Bus and systemd dependencies do not build against the Steam Runtime sniper glibc, so the SteamOS preset turns it off.",
+            "dependencies": [
+                {
+                    "name": "sdl3",
+                    "default-features": false,
+                    "features": [
+                        "ibus"
+                    ],
+                    "platform": "linux"
+                }
+            ]
+        }
+    }
 }

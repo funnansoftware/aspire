@@ -1,0 +1,42 @@
+{
+    "version": 7,
+    "include": [
+        "../compiler/gcc.json",
+        "../config/binaryDir.json",
+        "../config/ninja.json",
+        "../config/release.json",
+        "../config/vcpkg.json",
+        "../host/x64-linux.json",
+        "../target/x64-steamos.json"
+    ],
+    "configurePresets": [
+        {
+            "name": "x64-steamos-gcc-release",
+            "displayName": "x64-steamos-gcc-release (Steam Deck release build, sniper glibc 2.31)",
+            "inherits": [
+                "config-binaryDir",
+                "config-release",
+                "config-ninja",
+                "config-vcpkg",
+                "compiler-gcc",
+                "host-x64-linux",
+                "target-x64-steamos"
+            ]
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "x64-steamos-gcc-release",
+            "configurePreset": "x64-steamos-gcc-release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "x64-steamos-gcc-release",
+            "configurePreset": "x64-steamos-gcc-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}
