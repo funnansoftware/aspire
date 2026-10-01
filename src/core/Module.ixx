@@ -1,9 +1,12 @@
 export module aspire.core;
-export import aspire.core.data;
-export import aspire.core.database;
-export import aspire.core.dataservice;
-export import aspire.core.engine;
-export import aspire.core.object;
-export import aspire.core.objectfactory;
-export import aspire.core.property;
-export import aspire.core.vec2;
+
+export import :data;
+export import :database;
+export import :dataservice;
+export import :engine;
+export import :event;
+export import :object;
+export import :objectfactory;
+export import :overloaded;
+export import :property;
+export import :vec2;

@@ -1,7 +1,7 @@
-export module aspire.string.tostring;
+export module aspire.string:tostring;
 
 import std;
-import aspire.string.errorcode;
+import :errorcode;
 
 export namespace aspire::string
 {

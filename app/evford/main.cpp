@@ -8,12 +8,12 @@ import std;
 
 namespace
 {
-    constexpr std::size_t colorCount = 4;
-    constexpr std::size_t particlesPerColor = evford::particleCount / colorCount;
-    static_assert(evford::particleCount % colorCount == 0);
-    constexpr std::array<SDL_Color, colorCount> colors{{{107, 222, 195, 255}, {119, 184, 255, 255}, {195, 164, 255, 255}, {255, 185, 132, 255}}};
-    constexpr SDL_FRect resetButton{816.0F, 28.0F, 112.0F, 40.0F};
-    constexpr double fixedStepSeconds = 1.0 / 120.0;
+    constexpr std::size_t ColorCount = 4;
+    constexpr std::size_t ParticlesPerColor = evford::ParticleCount / ColorCount;
+    static_assert(evford::ParticleCount % ColorCount == 0);
+    constexpr std::array<SDL_Color, ColorCount> Colors{{{107, 222, 195, 255}, {119, 184, 255, 255}, {195, 164, 255, 255}, {255, 185, 132, 255}}};
+    constexpr SDL_FRect ResetButton{816.0F, 28.0F, 112.0F, 40.0F};
+    constexpr double FixedStepSeconds = 1.0 / 120.0;
 
     struct App
     {
@@ -21,7 +21,7 @@ namespace
         SDL_Renderer* renderer = nullptr;
         evford::World world;
         // Rendering consumes simulation columns into one reusable SDL buffer.
-        std::array<SDL_FRect, evford::particleCount> rectangles{};
+        std::array<SDL_FRect, evford::ParticleCount> rectangles{};
         Uint64 previousTicks = 0;
         std::uint64_t frameLimit = 0;
         std::uint64_t renderedFrames = 0;
@@ -34,44 +34,44 @@ namespace
         bool minimized = false;
     };
 
-    SDL_AppResult fail(const char* operation)
+    auto Fail(const char* operation) -> SDL_AppResult
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s: %s", operation, SDL_GetError());
         return SDL_APP_FAILURE;
     }
 
-    void resetClock(App& app)
+    auto ResetClock(App& app) -> void
     {
         app.previousTicks = SDL_GetTicksNS();
         app.accumulator = 0.0;
     }
 
-    void resetScene(App& app)
+    auto ResetScene(App& app) -> void
     {
-        evford::reset(app.world);
-        resetClock(app);
+        evford::Reset(app.world);
+        ResetClock(app);
     }
 
-    void activatePointer(App& app, float x, float y)
+    auto ActivatePointer(App& app, float x, float y) -> void
     {
         // Ignore touches in the letterbox. The reset control also works on touch screens.
-        if (x < 0.0F || x >= evford::canvasWidth || y < 0.0F || y >= evford::canvasHeight)
+        if (x < 0.0F || x >= evford::CanvasWidth || y < 0.0F || y >= evford::CanvasHeight)
         {
             return;
         }
         const SDL_FPoint point{x, y};
-        if (SDL_PointInRectFloat(&point, &resetButton))
+        if (SDL_PointInRectFloat(&point, &ResetButton))
         {
-            resetScene(app);
+            ResetScene(app);
         }
         else
         {
             app.paused = !app.paused;
-            resetClock(app);
+            ResetClock(app);
         }
     }
 
-    bool render(App& app)
+    auto Render(App& app) -> bool
     {
         auto* renderer = app.renderer;
         if (!SDL_SetRenderDrawColor(renderer, 14, 20, 30, 255) || !SDL_RenderClear(renderer))
@@ -79,22 +79,22 @@ namespace
             return false;
         }
 
-        const SDL_FRect field{evford::fieldLeft, evford::fieldTop, evford::fieldRight - evford::fieldLeft, evford::fieldBottom - evford::fieldTop};
+        const SDL_FRect field{evford::FieldLeft, evford::FieldTop, evford::FieldRight - evford::FieldLeft, evford::FieldBottom - evford::FieldTop};
         if (!SDL_SetRenderDrawColor(renderer, 21, 31, 44, 255) || !SDL_RenderFillRect(renderer, &field)
-            || !SDL_SetRenderDrawColor(renderer, 48, 65, 84, 255) || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &resetButton))
+            || !SDL_SetRenderDrawColor(renderer, 48, 65, 84, 255) || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &ResetButton))
         {
             return false;
         }
 
-        for (std::size_t i = 0; i < evford::particleCount; ++i)
+        for (std::size_t i = 0; i < evford::ParticleCount; ++i)
         {
-            app.rectangles[i] = {app.world.x[i], app.world.y[i], evford::particleSize, evford::particleSize};
+            app.rectangles[i] = {app.world.x[i], app.world.y[i], evford::ParticleSize, evford::ParticleSize};
         }
-        for (std::size_t batch = 0; batch < colorCount; ++batch)
+        for (std::size_t batch = 0; batch < ColorCount; ++batch)
         {
-            const auto& color = colors[batch];
+            const auto& color = Colors[batch];
             if (!SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
-                || !SDL_RenderFillRects(renderer, app.rectangles.data() + batch * particlesPerColor, static_cast<int>(particlesPerColor)))
+                || !SDL_RenderFillRects(renderer, std::data(app.rectangles) + batch * ParticlesPerColor, static_cast<int>(ParticlesPerColor)))
             {
                 return false;
             }
@@ -110,7 +110,8 @@ namespace
     }
 }
 
-SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv)
+// NOLINTNEXTLINE(readability-identifier-naming)
+auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
 {
     *appstate = nullptr;
     std::uint64_t frameLimit = 0;
@@ -123,14 +124,14 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv)
             SDL_Log("Usage: evford [--frames=N]  (N must be positive; omit for interactive mode)");
             return SDL_APP_SUCCESS;
         }
-        if (argument.substr(0, prefix.size()) != prefix)
+        if (argument.substr(0, std::size(prefix)) != prefix)
         {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unknown argument: %s", argv[i]);
             return SDL_APP_FAILURE;
         }
-        const auto value = argument.substr(prefix.size());
-        const auto parsed = std::from_chars(value.data(), value.data() + value.size(), frameLimit);
-        if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || frameLimit == 0)
+        const auto value = argument.substr(std::size(prefix));
+        const auto parsed = std::from_chars(std::data(value), std::data(value) + std::size(value), frameLimit);
+        if (parsed.ec != std::errc{} || parsed.ptr != std::data(value) + std::size(value) || frameLimit == 0)
         {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "--frames requires a positive integer");
             return SDL_APP_FAILURE;
@@ -149,27 +150,28 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv)
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "60");
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
-        return fail("Initialize SDL video");
+        return Fail("Initialize SDL video");
     }
-    if (!SDL_CreateWindowAndRenderer("Evford - particle field", evford::canvasWidth, evford::canvasHeight,
+    if (!SDL_CreateWindowAndRenderer("Evford - particle field", evford::CanvasWidth, evford::CanvasHeight,
                                      SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &app->window, &app->renderer))
     {
-        return fail("Create window and renderer");
+        return Fail("Create window and renderer");
     }
-    if (!SDL_SetRenderLogicalPresentation(app->renderer, evford::canvasWidth, evford::canvasHeight, SDL_LOGICAL_PRESENTATION_LETTERBOX))
+    if (!SDL_SetRenderLogicalPresentation(app->renderer, evford::CanvasWidth, evford::CanvasHeight, SDL_LOGICAL_PRESENTATION_LETTERBOX))
     {
-        return fail("Set logical presentation");
+        return Fail("Set logical presentation");
     }
     // The callback-rate hint still limits desktop work if a backend cannot enable vsync.
     if (!SDL_SetRenderVSync(app->renderer, 1))
     {
         SDL_Log("Vsync unavailable: %s", SDL_GetError());
     }
-    resetScene(*app);
+    ResetScene(*app);
     return SDL_APP_CONTINUE;
 }
 
-SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
+// NOLINTNEXTLINE(readability-identifier-naming)
+auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
 {
     auto& app = *static_cast<App*>(appstate);
     switch (event->type)
@@ -187,11 +189,11 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
                 if (event->key.key == SDLK_SPACE)
                 {
                     app.paused = !app.paused;
-                    resetClock(app);
+                    ResetClock(app);
                 }
                 else if (event->key.key == SDLK_R)
                 {
-                    resetScene(app);
+                    ResetScene(app);
                 }
             }
             break;
@@ -201,9 +203,9 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
             {
                 if (!SDL_ConvertEventToRenderCoordinates(app.renderer, event))
                 {
-                    return fail("Convert mouse coordinates");
+                    return Fail("Convert mouse coordinates");
                 }
-                activatePointer(app, event->button.x, event->button.y);
+                ActivatePointer(app, event->button.x, event->button.y);
             }
             break;
         case SDL_EVENT_FINGER_DOWN:
@@ -213,9 +215,9 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
             }
             if (!SDL_ConvertEventToRenderCoordinates(app.renderer, event))
             {
-                return fail("Convert touch coordinates");
+                return Fail("Convert touch coordinates");
             }
-            activatePointer(app, event->tfinger.x, event->tfinger.y);
+            ActivatePointer(app, event->tfinger.x, event->tfinger.y);
             break;
         case SDL_EVENT_WILL_ENTER_BACKGROUND:
         case SDL_EVENT_DID_ENTER_BACKGROUND:
@@ -228,11 +230,11 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
             break;
         case SDL_EVENT_WINDOW_MINIMIZED:
             app.minimized = true;
-            resetClock(app);
+            ResetClock(app);
             break;
         case SDL_EVENT_WINDOW_RESTORED:
             app.minimized = false;
-            resetClock(app);
+            ResetClock(app);
             break;
         default:
             break;
@@ -240,7 +242,8 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
     return SDL_APP_CONTINUE;
 }
 
-SDL_AppResult SDL_AppIterate(void* appstate)
+// NOLINTNEXTLINE(readability-identifier-naming)
+auto SDL_AppIterate(void* appstate) -> SDL_AppResult
 {
     auto& app = *static_cast<App*>(appstate);
     const auto now = SDL_GetTicksNS();
@@ -258,22 +261,23 @@ SDL_AppResult SDL_AppIterate(void* appstate)
     }
     if (!app.paused)
     {
-        app.accumulator += std::min(elapsed, static_cast<double>(evford::maxFrameSeconds));
-        while (app.accumulator >= fixedStepSeconds)
+        app.accumulator += std::min(elapsed, static_cast<double>(evford::MaxFrameSeconds));
+        while (app.accumulator >= FixedStepSeconds)
         {
-            evford::advance(app.world, static_cast<float>(fixedStepSeconds));
-            app.accumulator -= fixedStepSeconds;
+            evford::Advance(app.world, static_cast<float>(FixedStepSeconds));
+            app.accumulator -= FixedStepSeconds;
         }
     }
-    if (!render(app))
+    if (!Render(app))
     {
-        return fail("Render frame");
+        return Fail("Render frame");
     }
     ++app.renderedFrames;
     return app.frameLimit != 0 && app.renderedFrames >= app.frameLimit ? SDL_APP_SUCCESS : SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void* appstate, SDL_AppResult)
+// NOLINTNEXTLINE(readability-identifier-naming)
+auto SDL_AppQuit(void* appstate, SDL_AppResult) -> void
 {
     auto* app = static_cast<App*>(appstate);
     if (app != nullptr)

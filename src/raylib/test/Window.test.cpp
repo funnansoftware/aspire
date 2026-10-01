@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-import aspire.raylib.window;
+import aspire.raylib;
 
 // TEST(WindowTest, ShouldCloseReturnsFalseInitially)
 // {

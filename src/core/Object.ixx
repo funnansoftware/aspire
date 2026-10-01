@@ -1,9 +1,9 @@
-export module aspire.core.object;
+export module aspire.core:object;
 
 import std;
-import aspire.core.property;
-import aspire.core.event;
-import aspire.core.overloaded;
+import :property;
+import :event;
+import :overloaded;
 
 export namespace aspire::core
 {

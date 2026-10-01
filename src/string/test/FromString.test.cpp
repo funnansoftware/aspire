@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 
 import std;
-import aspire.string.errorcode;
-import aspire.string.fromstring;
+import aspire.string;
 
 TEST(FromString, string)
 {

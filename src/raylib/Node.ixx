@@ -4,10 +4,10 @@ module;
 #include <raymath.h>
 #include <rlgl.h>
 
-export module aspire.raylib.node;
+export module aspire.raylib:node;
 
 import std;
-import aspire.core.object;
+import aspire.core;
 
 export namespace aspire::raylib
 {

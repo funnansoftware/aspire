@@ -2,9 +2,8 @@
 #include <nameof.hpp>
 
 import std;
-import aspire.parser.json;
-import aspire.core.object;
-import aspire.core.objectfactory;
+import aspire.parser;
+import aspire.core;
 
 namespace
 {
@@ -40,7 +39,7 @@ TEST(ReadFile, basic)
 
     std::ofstream(file) << json;
 
-    const auto obj = aspire::parser::json::ReadFile(factory, file);
+    const auto obj = aspire::parser::ReadFile(factory, file);
 
     // Remove the temporary input before checking the parsed result.
     EXPECT_GT(std::filesystem::remove_all(tmp), 0);

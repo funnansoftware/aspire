@@ -2,7 +2,7 @@ module;
 
 #include <nlohmann/json.hpp>
 
-export module aspire.core.property;
+export module aspire.core:property;
 
 import std;
 
@@ -16,7 +16,7 @@ export namespace aspire::core
     class Property
     {
     public:
-        Property(std::string_view x) : name_{x}
+        explicit Property(std::string_view x) : name_{x}
         {
         }
 

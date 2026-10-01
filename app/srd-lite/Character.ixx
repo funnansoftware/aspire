@@ -3,7 +3,7 @@
 export module sl.character;
 
 import std;
-import aspire.core.object;
+import aspire.core;
 
 export namespace sl
 {
@@ -27,7 +27,7 @@ export namespace sl
             position_ = x;
         }
 
-        [[nodiscard]] auto getPosition() const noexcept
+        [[nodiscard]] auto getPosition() const noexcept -> std::array<int, 2>
         {
             return position_;
         }

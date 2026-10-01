@@ -4,8 +4,8 @@ add_library(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        Database.ixx
         Data.ixx
+        Database.ixx
         DataService.ixx
         Engine.ixx
         Event.ixx

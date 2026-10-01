@@ -1,8 +1,8 @@
-export module aspire.string.fromstring;
+export module aspire.string:fromstring;
 
 import std;
-import aspire.string.concepts;
-import aspire.string.errorcode;
+import :concepts;
+import :errorcode;
 
 export namespace aspire::string
 {
@@ -34,7 +34,7 @@ export namespace aspire::string
     [[nodiscard]] constexpr auto FromString(std::string_view str) -> std::expected<T, ErrorCode>
     {
         T value{};
-        const auto [ptr, ec] = std::from_chars(std::to_address(str.begin()), std::to_address(str.end()), value);
+        const auto [ptr, ec] = std::from_chars(std::to_address(std::begin(str)), std::to_address(std::end(str)), value);
 
         if (ec == std::errc())
         {

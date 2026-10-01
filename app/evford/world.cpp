@@ -6,7 +6,7 @@ namespace evford
 {
     namespace
     {
-        float nextUnit(std::uint32_t& state)
+        auto NextUnit(std::uint32_t& state) -> float
         {
             // Specified integer arithmetic makes resets reproducible across toolchains,
             // without relying on implementation-specific random distributions.
@@ -14,10 +14,10 @@ namespace evford
             return static_cast<float>(state >> 8U) / 16777216.0F;
         }
 
-        void advanceAxis(std::array<float, particleCount>& positions, std::array<float, particleCount>& velocities, float low, float high,
-                         float seconds)
+        auto AdvanceAxis(std::array<float, ParticleCount>& positions, std::array<float, ParticleCount>& velocities, float low, float high,
+                         float seconds) -> void
         {
-            for (std::size_t i = 0; i < particleCount; ++i)
+            for (std::size_t i = 0; i < ParticleCount; ++i)
             {
                 auto position = positions[i] + velocities[i] * seconds;
                 // Retain the overshoot when bouncing, so particles do not stick to walls.
@@ -37,27 +37,27 @@ namespace evford
         }
     }
 
-    void reset(World& world, std::uint32_t seed)
+    auto Reset(World& world, std::uint32_t seed) -> void
     {
-        for (std::size_t i = 0; i < particleCount; ++i)
+        for (std::size_t i = 0; i < ParticleCount; ++i)
         {
-            world.x[i] = fieldLeft + nextUnit(seed) * (fieldRight - fieldLeft - particleSize);
-            world.y[i] = fieldTop + nextUnit(seed) * (fieldBottom - fieldTop - particleSize);
-            const auto speedX = 30.0F + nextUnit(seed) * 100.0F;
-            const auto speedY = 30.0F + nextUnit(seed) * 100.0F;
-            world.velocityX[i] = nextUnit(seed) < 0.5F ? -speedX : speedX;
-            world.velocityY[i] = nextUnit(seed) < 0.5F ? -speedY : speedY;
+            world.x[i] = FieldLeft + NextUnit(seed) * (FieldRight - FieldLeft - ParticleSize);
+            world.y[i] = FieldTop + NextUnit(seed) * (FieldBottom - FieldTop - ParticleSize);
+            const auto speedX = 30.0F + NextUnit(seed) * 100.0F;
+            const auto speedY = 30.0F + NextUnit(seed) * 100.0F;
+            world.velocityX[i] = NextUnit(seed) < 0.5F ? -speedX : speedX;
+            world.velocityY[i] = NextUnit(seed) < 0.5F ? -speedY : speedY;
         }
     }
 
-    void advance(World& world, float seconds)
+    auto Advance(World& world, float seconds) -> void
     {
         if (!std::isfinite(seconds) || seconds <= 0.0F)
         {
             return;
         }
-        seconds = std::min(seconds, maxFrameSeconds);
-        advanceAxis(world.x, world.velocityX, fieldLeft, fieldRight - particleSize, seconds);
-        advanceAxis(world.y, world.velocityY, fieldTop, fieldBottom - particleSize, seconds);
+        seconds = std::min(seconds, MaxFrameSeconds);
+        AdvanceAxis(world.x, world.velocityX, FieldLeft, FieldRight - ParticleSize, seconds);
+        AdvanceAxis(world.y, world.velocityY, FieldTop, FieldBottom - ParticleSize, seconds);
     }
 }

@@ -4,7 +4,7 @@ import std;
 
 namespace
 {
-    void require(bool condition, const char* message)
+    auto Require(bool condition, const char* message) -> void
     {
         if (!condition)
         {
@@ -13,84 +13,84 @@ namespace
         }
     }
 
-    bool equal(const evford::World& a, const evford::World& b)
+    auto Equal(const evford::World& a, const evford::World& b) -> bool
     {
         return a.x == b.x && a.y == b.y && a.velocityX == b.velocityX && a.velocityY == b.velocityY;
     }
 
-    bool near(float a, float b)
+    auto Near(float a, float b) -> bool
     {
         return std::abs(a - b) < 0.0001F;
     }
 
-    void requireBounds(const evford::World& world)
+    auto RequireBounds(const evford::World& world) -> void
     {
-        for (std::size_t i = 0; i < evford::particleCount; ++i)
+        for (std::size_t i = 0; i < evford::ParticleCount; ++i)
         {
-            require(world.x[i] >= evford::fieldLeft && world.x[i] <= evford::fieldRight - evford::particleSize,
+            Require(world.x[i] >= evford::FieldLeft && world.x[i] <= evford::FieldRight - evford::ParticleSize,
                     "particle remains inside horizontal bounds");
-            require(world.y[i] >= evford::fieldTop && world.y[i] <= evford::fieldBottom - evford::particleSize,
+            Require(world.y[i] >= evford::FieldTop && world.y[i] <= evford::FieldBottom - evford::ParticleSize,
                     "particle remains inside vertical bounds");
         }
     }
 }
 
-int main()
+auto main() -> int
 {
     evford::World world;
     evford::World same;
-    evford::reset(world);
-    evford::reset(same);
-    require(equal(world, same), "identical seeds produce identical worlds");
-    requireBounds(world);
-    evford::reset(same, evford::initialSeed + 1U);
-    require(!equal(world, same), "different seeds produce different worlds");
+    evford::Reset(world);
+    evford::Reset(same);
+    Require(Equal(world, same), "identical seeds produce identical worlds");
+    RequireBounds(world);
+    evford::Reset(same, evford::InitialSeed + 1U);
+    Require(!Equal(world, same), "different seeds produce different worlds");
 
     // Check expected integration and reflected overshoot at both pairs of walls.
     world.x[0] = 200.0F;
     world.y[0] = 200.0F;
     world.velocityX[0] = 40.0F;
     world.velocityY[0] = -60.0F;
-    world.x[1] = evford::fieldLeft + 1.0F;
-    world.y[1] = evford::fieldTop + 1.0F;
+    world.x[1] = evford::FieldLeft + 1.0F;
+    world.y[1] = evford::FieldTop + 1.0F;
     world.velocityX[1] = -100.0F;
     world.velocityY[1] = -100.0F;
-    world.x[2] = evford::fieldRight - evford::particleSize - 1.0F;
-    world.y[2] = evford::fieldBottom - evford::particleSize - 1.0F;
+    world.x[2] = evford::FieldRight - evford::ParticleSize - 1.0F;
+    world.y[2] = evford::FieldBottom - evford::ParticleSize - 1.0F;
     world.velocityX[2] = 100.0F;
     world.velocityY[2] = 100.0F;
-    evford::advance(world, 0.025F);
-    require(near(world.x[0], 201.0F) && near(world.y[0], 198.5F), "position advances by velocity times elapsed seconds");
-    require(near(world.x[1], evford::fieldLeft + 1.5F) && near(world.y[1], evford::fieldTop + 1.5F), "low wall collision retains overshoot");
-    require(world.velocityX[1] == 100.0F && world.velocityY[1] == 100.0F, "low walls reflect velocity inward");
-    require(near(world.x[2], evford::fieldRight - evford::particleSize - 1.5F) && near(world.y[2], evford::fieldBottom - evford::particleSize - 1.5F),
+    evford::Advance(world, 0.025F);
+    Require(Near(world.x[0], 201.0F) && Near(world.y[0], 198.5F), "position advances by velocity times elapsed seconds");
+    Require(Near(world.x[1], evford::FieldLeft + 1.5F) && Near(world.y[1], evford::FieldTop + 1.5F), "low wall collision retains overshoot");
+    Require(world.velocityX[1] == 100.0F && world.velocityY[1] == 100.0F, "low walls reflect velocity inward");
+    Require(Near(world.x[2], evford::FieldRight - evford::ParticleSize - 1.5F) && Near(world.y[2], evford::FieldBottom - evford::ParticleSize - 1.5F),
             "high wall collision retains overshoot");
-    require(world.velocityX[2] == -100.0F && world.velocityY[2] == -100.0F, "high walls reflect velocity inward");
+    Require(world.velocityX[2] == -100.0F && world.velocityY[2] == -100.0F, "high walls reflect velocity inward");
 
     same = world;
-    evford::advance(world, 0.0F);
-    evford::advance(world, -1.0F);
-    evford::advance(world, std::numeric_limits<float>::quiet_NaN());
-    evford::advance(world, std::numeric_limits<float>::infinity());
-    require(equal(world, same), "zero, negative and non-finite intervals do nothing");
-    evford::advance(world, 100.0F);
-    evford::advance(same, evford::maxFrameSeconds);
-    require(equal(world, same), "long stalls are clamped");
+    evford::Advance(world, 0.0F);
+    evford::Advance(world, -1.0F);
+    evford::Advance(world, std::numeric_limits<float>::quiet_NaN());
+    evford::Advance(world, std::numeric_limits<float>::infinity());
+    Require(Equal(world, same), "zero, negative and non-finite intervals do nothing");
+    evford::Advance(world, 100.0F);
+    evford::Advance(same, evford::MaxFrameSeconds);
+    Require(Equal(world, same), "long stalls are clamped");
 
-    evford::reset(world);
-    evford::reset(same);
+    evford::Reset(world);
+    evford::Reset(same);
     for (int step = 0; step < 12000; ++step)
     {
-        evford::advance(world, 1.0F / 120.0F);
-        requireBounds(world);
+        evford::Advance(world, 1.0F / 120.0F);
+        RequireBounds(world);
     }
-    for (std::size_t i = 0; i < evford::particleCount; ++i)
+    for (std::size_t i = 0; i < evford::ParticleCount; ++i)
     {
-        require(std::abs(world.velocityX[i]) == std::abs(same.velocityX[i]) && std::abs(world.velocityY[i]) == std::abs(same.velocityY[i]),
+        Require(std::abs(world.velocityX[i]) == std::abs(same.velocityX[i]) && std::abs(world.velocityY[i]) == std::abs(same.velocityY[i]),
                 "wall collisions preserve speed over a long simulation");
     }
-    evford::reset(world);
-    require(equal(world, same), "reset restores the initial scene after simulation");
+    evford::Reset(world);
+    Require(Equal(world, same), "reset restores the initial scene after simulation");
     std::cout << "Evford world tests passed\n";
     return 0;
 }

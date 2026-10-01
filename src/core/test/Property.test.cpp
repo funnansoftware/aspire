@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 import std;
-import aspire.core.property;
+import aspire.core;
 
 namespace
 {

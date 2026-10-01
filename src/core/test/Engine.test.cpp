@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-import aspire.core.engine;
+import aspire.core;
 
 // TEST(EngineTest, RunReturnsSuccess)
 // {

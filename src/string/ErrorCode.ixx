@@ -1,4 +1,4 @@
-export module aspire.string.errorcode;
+export module aspire.string:errorcode;
 
 import std;
 

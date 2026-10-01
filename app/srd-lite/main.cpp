@@ -3,7 +3,9 @@
 #include <nameof.hpp>
 
 import std;
-import aspire;
+import aspire.core;
+import aspire.raylib;
+import aspire.parser;
 import sl.character;
 import sl.viewworld;
 
@@ -23,8 +25,8 @@ try
 
     auto engine = std::make_shared<aspire::core::Engine>();
 
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/database.json"));
-    engine->addChild(aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/config/Game.json"));
+    engine->addChild(aspire::parser::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/database.json"));
+    engine->addChild(aspire::parser::ReadFile(factory, "D:/dev/aspire/app/srd-lite/config/Game.json"));
 
     constexpr auto windowWidth = 1280;
     constexpr auto windowHeight = 720;
@@ -37,11 +39,11 @@ try
     world->setPosition(Vector2{.x = (window->width() / 4.0F) * 0.5F, .y = 0});
     window->addChild(world);
 
-    auto level = aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/levels/level_1.json");
+    auto level = aspire::parser::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/levels/level_1.json");
     world->addChild(level);
 
     auto character = std::dynamic_pointer_cast<aspire::raylib::Node>(
-        aspire::parser::json::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/characters/goblin.json"));
+        aspire::parser::ReadFile(factory, "D:/dev/aspire/app/srd-lite/database/characters/goblin.json"));
     character->setPosition(Vector2{.x = 50, .y = 50});
     world->addChild(character);
     window->addChild(std::make_shared<aspire::raylib::Text>());
