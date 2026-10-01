@@ -1,0 +1,45 @@
+name: linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/get-vcpkg
+        with:
+          bootstrap: 'false'
+
+      - name: Build, test, and package in devcontainer
+        uses: ./.github/actions/devcontainer
+        with:
+          run: |
+            ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+            cmake --preset x64-linux-clang-release
+            cmake --build --preset x64-linux-clang-release --parallel
+            ctest --preset x64-linux-clang-release --no-tests=ignore
+            cmake --install build/x64-linux-clang-release
+            tar -czf build/aspire-linux-x64.tar.gz -C build/x64-linux-clang-release/installed .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aspire-linux-x64
+          path: build/aspire-linux-x64.tar.gz
+          if-no-files-found: error

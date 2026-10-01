@@ -45,7 +45,7 @@
                 "config-vcpkg",
                 "compiler-clang",
                 "host-x64-linux",
-                "target-x64-linux"
+                "target-x64-linux-libcxx"
             ]
         },
         {
@@ -57,7 +57,7 @@
                 "config-vcpkg",
                 "compiler-clang",
                 "host-x64-linux",
-                "target-x64-linux"
+                "target-x64-linux-libcxx"
             ]
         }
     ],

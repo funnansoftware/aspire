@@ -3,14 +3,14 @@ Personal integration and rendering engine.
 
 ## SDL3 data-oriented example
 
-[`app/evford`](app/evford/README.md) renders an animated particle simulation using
+[`app/evford`](app/evford) renders an animated particle simulation using
 separate arrays for positions and velocities, with SDL3 handling rendering and
 application lifecycle. Active build paths target Windows, Linux, macOS, and
 WebAssembly. Android presets, triplets, and packaging files are retained, but
 its presets are hidden and its build entry points are temporarily disabled.
 
 Presets are named `<architecture>-<platform>-<compiler>-<configuration>`.
-With CMake 4.4.3+, Ninja, a C++23 compiler with standard-library modules, and the vcpkg submodule bootstrapped,
+With CMake 4.4.2+, Ninja, a C++23 compiler with standard-library modules, and the vcpkg submodule bootstrapped,
 choose the preset for your platform. For example, on an ARM64 Mac:
 
 ```sh
@@ -25,10 +25,13 @@ Run `build/<preset>/installed/bin/evford` (`evford.exe` on Windows).
 Space, click, or tap pauses; R resets; Escape exits.
 
 The example requires C++23 `import std;` and the compiler's matching
-standard-library module sources. This is verified with Homebrew LLVM 21 on macOS and
-Emscripten 6.0.3 for WebAssembly. Recent MSVC and Linux Clang/GCC toolchains can
-also use this path when their matching standard-library module sources are
-installed. SDL's C API still uses its headers.
+standard-library module sources. [CI](.github/README.md) builds it with MSVC on
+Windows, Clang 22 and libc++ on Linux, Homebrew LLVM 22 on macOS, and the
+Emscripten release pinned by the `emsdk` submodule for WebAssembly. Linux Clang
+presets use libc++, so install Clang, clang-tools (for clang-scan-deps), libc++,
+and libc++abi from the same LLVM release, or use the
+[devcontainer](.devcontainer/Dockerfile), which also provides GCC 15 and SDL3's
+system dependencies. SDL's C API still uses its headers.
 
 The root `CMakeLists.txt` enables C++23 and CMake's experimental `import std;`
 support, using the same setup as the earlier `srd-lite` build. There is no
@@ -40,13 +43,33 @@ configuration, run `cmake --fresh --preset <preset>` to refresh compiler discove
 All presets build `evford`; SDL3 is the only application dependency in the vcpkg
 manifest. The legacy `src/` libraries and `srd-lite` app remain in the repository
 but are disabled in the build. See the
-[example README](app/evford/README.md) for platform prerequisites and web builds,
-and the [retained Android project](app/evford/android/README.md) for its disabled
+[retained Android project](app/evford/android/README.md) for its disabled
 build configuration.
+
+## WebAssembly
+
+The `emsdk` submodule pins the Emscripten release. Install it once into the
+ignored `.emsdk` directory; rerun this after the submodule is updated:
+
+```sh
+git submodule update --init emsdk
+cmake -P cmake/bootstrap-emsdk.cmake
+cmake --preset wasm32-emscripten-emcc-release
+cmake --build --preset wasm32-emscripten-emcc-release
+cmake --install build/wasm32-emscripten-emcc-release
+python3 -m http.server 8000 --directory build/wasm32-emscripten-emcc-release/installed/share/evford
+```
+
+Open [localhost:8000/evford.html](http://localhost:8000/evford.html). The
+WebAssembly presets point `EMSDK` and the Emscripten tools at `.emsdk`, so an
+activated system SDK is not needed and is not used.
 
 ## Installing on Windows
 
-Configure, build, and install using the same preset:
+The Windows presets use the compiler and SDK from the Visual Studio developer
+environment. Run them from an x64 Developer PowerShell or Developer Command
+Prompt, or after `VsDevCmd.bat -arch=amd64`; VS Code's CMake Tools sets this up
+automatically. Configure, build, and install using the same preset:
 
 ```powershell
 cmake --preset x64-windows-clang-debug

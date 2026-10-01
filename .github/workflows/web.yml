@@ -1,0 +1,57 @@
+name: web
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/get-vcpkg
+        with:
+          bootstrap: 'false'
+
+      - name: Restore Emscripten SDK
+        uses: actions/cache@v4
+        with:
+          path: .emsdk
+          key: emsdk-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.devcontainer/Dockerfile', 'emsdk/emscripten-releases-tags.json', 'emsdk/emsdk_manifest.json', 'cmake/bootstrap-emsdk.cmake') }}
+
+      - name: Build and verify in devcontainer
+        uses: ./.github/actions/devcontainer
+        with:
+          run: |
+            ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+            cmake -P cmake/bootstrap-emsdk.cmake
+            cmake --preset wasm32-emscripten-emcc-release
+            cmake --build --preset wasm32-emscripten-emcc-release --parallel
+            cmake --install build/wasm32-emscripten-emcc-release
+            out=build/wasm32-emscripten-emcc-release/installed/share/evford
+            for file in evford.html evford.js evford.wasm; do
+              if [ ! -s "$out/$file" ]; then
+                echo "::error::Missing or empty web asset: $out/$file"
+                exit 1
+              fi
+            done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aspire-web
+          path: build/wasm32-emscripten-emcc-release/installed/share/evford
+          if-no-files-found: error

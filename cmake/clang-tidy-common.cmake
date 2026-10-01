@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.4.3)
+cmake_minimum_required(VERSION 4.4.2)
 
 if(ASPIRE_TIDY_ERROR)
     message(FATAL_ERROR "${ASPIRE_TIDY_ERROR}")

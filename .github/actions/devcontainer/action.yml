@@ -1,0 +1,40 @@
+name: Build in devcontainer
+description: Build the project's devcontainer image and run commands inside it.
+
+inputs:
+  run:
+    description: Bash commands to execute in the checked-out workspace.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Build devcontainer image
+      uses: docker/build-push-action@v6
+      with:
+        context: .devcontainer
+        file: .devcontainer/Dockerfile
+        load: true
+        tags: aspire-devcontainer:ci
+        cache-from: type=gha,scope=devcontainer-${{ github.workflow }}
+        cache-to: type=gha,scope=devcontainer-${{ github.workflow }},mode=max
+
+    - name: Run in devcontainer
+      shell: bash
+      env:
+        BUILD_COMMANDS: ${{ inputs.run }}
+      run: |
+        # Preserve workspace paths and file ownership for caches and artifacts.
+        docker run --rm \
+          --user "$(id -u):$(id -g)" \
+          --volume "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" \
+          --workdir "$GITHUB_WORKSPACE" \
+          --env HOME=/tmp \
+          --env CI=true \
+          --env VCPKG_ROOT \
+          --env VCPKG_DEFAULT_BINARY_CACHE \
+          --env VCPKG_BINARY_SOURCES \
+          aspire-devcontainer:ci \
+          bash -euo pipefail -c "$BUILD_COMMANDS"

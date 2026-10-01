@@ -1,0 +1,56 @@
+name: macos
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: lukka/get-cmake@v4.4.2
+        with:
+          cmakeVersion: '4.4.2'
+          ninjaVersion: '1.13.1'
+
+      - name: Install LLVM
+        run: |
+          brew install llvm@22
+          echo "$(brew --prefix llvm@22)/bin" >> "$GITHUB_PATH"
+
+      - uses: ./.github/actions/get-vcpkg
+
+      - name: Configure
+        run: cmake --preset arm64-macos-clang-release
+
+      - name: Build
+        run: cmake --build --preset arm64-macos-clang-release --parallel
+
+      - name: Test
+        run: ctest --preset arm64-macos-clang-release --no-tests=ignore
+
+      - name: Install and archive
+        run: |
+          cmake --install build/arm64-macos-clang-release
+          tar -czf build/aspire-macos-arm64.tar.gz -C build/arm64-macos-clang-release/installed .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aspire-macos-arm64
+          path: build/aspire-macos-arm64.tar.gz
+          if-no-files-found: error

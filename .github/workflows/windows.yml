@@ -1,0 +1,54 @@
+name: windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Keep this aligned with CMAKE_EXPERIMENTAL_CXX_IMPORT_STD.
+      - uses: lukka/get-cmake@v4.4.2
+        with:
+          cmakeVersion: '4.4.2'
+          ninjaVersion: '1.13.1'
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - uses: ./.github/actions/get-vcpkg
+
+      - name: Configure
+        run: cmake --preset x64-windows-msvc-release
+
+      - name: Build
+        run: cmake --build --preset x64-windows-msvc-release --parallel
+
+      - name: Test
+        run: ctest --preset x64-windows-msvc-release --no-tests=ignore
+
+      - name: Install
+        run: cmake --install build/x64-windows-msvc-release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aspire-windows-x64
+          path: build/x64-windows-msvc-release/installed
+          if-no-files-found: error

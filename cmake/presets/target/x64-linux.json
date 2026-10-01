@@ -7,6 +7,17 @@
             "cacheVariables": {
                 "VCPKG_TARGET_TRIPLET": "x64-linux-release"
             }
+        },
+        {
+            "name": "target-x64-linux-libcxx",
+            "hidden": true,
+            "inherits": [
+                "target-x64-linux"
+            ],
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET": "x64-linux-libcxx-release",
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/cmake/triplets"
+            }
         }
     ]
 }
