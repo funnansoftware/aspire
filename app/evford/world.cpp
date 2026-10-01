@@ -6,47 +6,60 @@ namespace evford
 {
     namespace
     {
+        // Numerical Recipes linear congruential generator.
+        constexpr std::uint32_t LcgMultiplier = 1664525U;
+        constexpr std::uint32_t LcgIncrement = 1013904223U;
+        // The top 24 bits fit a float mantissa exactly, giving uniform values in [0, 1).
+        constexpr std::uint32_t UnitShift = 8U;
+        constexpr float UnitScale = 16777216.0F;
+        constexpr float NegativeChance = 0.5F;
+
+        struct Bounds
+        {
+            float low;
+            float high;
+        };
+
         auto NextUnit(std::uint32_t& state) -> float
         {
             // Specified integer arithmetic makes resets reproducible across toolchains,
             // without relying on implementation-specific random distributions.
-            state = state * 1664525U + 1013904223U;
-            return static_cast<float>(state >> 8U) / 16777216.0F;
+            state = (state * LcgMultiplier) + LcgIncrement;
+            return static_cast<float>(state >> UnitShift) / UnitScale;
         }
 
-        auto AdvanceAxis(std::array<float, ParticleCount>& positions, std::array<float, ParticleCount>& velocities, float low, float high,
-                         float seconds) -> void
+        auto AdvanceAxis(std::array<float, ParticleCount>& positions, std::array<float, ParticleCount>& velocities, Bounds bounds, float seconds)
+            -> void
         {
-            for (std::size_t i = 0; i < ParticleCount; ++i)
+            for (auto&& [position, velocity] : std::views::zip(positions, velocities))
             {
-                auto position = positions[i] + velocities[i] * seconds;
+                position += velocity * seconds;
                 // Retain the overshoot when bouncing, so particles do not stick to walls.
                 // The initialized speed and clamped timestep cannot cross two walls.
-                if (position < low)
+                if (position < bounds.low)
                 {
-                    position = low + (low - position);
-                    velocities[i] = std::abs(velocities[i]);
+                    position = bounds.low + (bounds.low - position);
+                    velocity = std::abs(velocity);
                 }
-                else if (position > high)
+                else if (position > bounds.high)
                 {
-                    position = high - (position - high);
-                    velocities[i] = -std::abs(velocities[i]);
+                    position = bounds.high - (position - bounds.high);
+                    velocity = -std::abs(velocity);
                 }
-                positions[i] = position;
             }
         }
     }
 
     auto Reset(World& world, std::uint32_t seed) -> void
     {
-        for (std::size_t i = 0; i < ParticleCount; ++i)
+        for (auto&& [x, y, velocityX, velocityY] : std::views::zip(world.x, world.y, world.velocityX, world.velocityY))
         {
-            world.x[i] = FieldLeft + NextUnit(seed) * (FieldRight - FieldLeft - ParticleSize);
-            world.y[i] = FieldTop + NextUnit(seed) * (FieldBottom - FieldTop - ParticleSize);
-            const auto speedX = 30.0F + NextUnit(seed) * 100.0F;
-            const auto speedY = 30.0F + NextUnit(seed) * 100.0F;
-            world.velocityX[i] = NextUnit(seed) < 0.5F ? -speedX : speedX;
-            world.velocityY[i] = NextUnit(seed) < 0.5F ? -speedY : speedY;
+            x = FieldLeft + (NextUnit(seed) * (FieldRight - FieldLeft - ParticleSize));
+            y = FieldTop + (NextUnit(seed) * (FieldBottom - FieldTop - ParticleSize));
+            const auto speedX = 30.0F + (NextUnit(seed) * 100.0F);
+            const auto speedY = 30.0F + (NextUnit(seed) * 100.0F);
+            velocityX = NextUnit(seed) < NegativeChance ? -speedX : speedX;
+            velocityY = NextUnit(seed) < NegativeChance ? -speedY : speedY;
         }
     }
 
@@ -57,7 +70,7 @@ namespace evford
             return;
         }
         seconds = std::min(seconds, MaxFrameSeconds);
-        AdvanceAxis(world.x, world.velocityX, FieldLeft, FieldRight - ParticleSize, seconds);
-        AdvanceAxis(world.y, world.velocityY, FieldTop, FieldBottom - ParticleSize, seconds);
+        AdvanceAxis(world.x, world.velocityX, {.low = FieldLeft, .high = FieldRight - ParticleSize}, seconds);
+        AdvanceAxis(world.y, world.velocityY, {.low = FieldTop, .high = FieldBottom - ParticleSize}, seconds);
     }
 }

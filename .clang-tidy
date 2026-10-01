@@ -44,7 +44,7 @@ CheckOptions:
   readability-identifier-naming.PrivateStaticMemberSuffix: "_"
   readability-identifier-naming.ConceptCase: "CamelCase"
   readability-identifier-naming.EnumCase: "CamelCase"
-  readability-identifier-naming.FunctionCase: "camelBack"
+  readability-identifier-naming.FunctionCase: "CamelCase"
   readability-identifier-naming.GlobalConstantCase: "CamelCase"
   readability-identifier-naming.GlobalFunctionCase: "CamelCase"
   readability-identifier-naming.GlobalVariableCase: "CamelCase"

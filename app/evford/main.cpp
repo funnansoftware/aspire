@@ -1,3 +1,5 @@
+// SDL selects its callback entry points when this macro is defined before SDL_main.h.
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -11,8 +13,22 @@ namespace
     constexpr std::size_t ColorCount = 4;
     constexpr std::size_t ParticlesPerColor = evford::ParticleCount / ColorCount;
     static_assert(evford::ParticleCount % ColorCount == 0);
-    constexpr std::array<SDL_Color, ColorCount> Colors{{{107, 222, 195, 255}, {119, 184, 255, 255}, {195, 164, 255, 255}, {255, 185, 132, 255}}};
-    constexpr SDL_FRect ResetButton{816.0F, 28.0F, 112.0F, 40.0F};
+    constexpr std::array<SDL_Color, ColorCount> Colors{{{.r = 107, .g = 222, .b = 195, .a = 255},
+                                                        {.r = 119, .g = 184, .b = 255, .a = 255},
+                                                        {.r = 195, .g = 164, .b = 255, .a = 255},
+                                                        {.r = 255, .g = 185, .b = 132, .a = 255}}};
+    constexpr SDL_Color BackgroundColor{.r = 14, .g = 20, .b = 30, .a = 255};
+    constexpr SDL_Color FieldColor{.r = 21, .g = 31, .b = 44, .a = 255};
+    constexpr SDL_Color BorderColor{.r = 48, .g = 65, .b = 84, .a = 255};
+    constexpr SDL_Color TitleColor{.r = 228, .g = 237, .b = 247, .a = 255};
+    constexpr SDL_Color TextColor{.r = 150, .g = 171, .b = 194, .a = 255};
+    constexpr SDL_Color StatusColor{.r = 107, .g = 222, .b = 195, .a = 255};
+    constexpr SDL_FRect ResetButton{.x = 816.0F, .y = 28.0F, .w = 112.0F, .h = 40.0F};
+    constexpr SDL_FPoint TitlePosition{.x = 32.0F, .y = 32.0F};
+    constexpr SDL_FPoint ResetLabelPosition{.x = 844.0F, .y = 44.0F};
+    constexpr SDL_FPoint SummaryPosition{.x = 32.0F, .y = 56.0F};
+    constexpr SDL_FPoint ControlsPosition{.x = 32.0F, .y = 496.0F};
+    constexpr SDL_FPoint StatusPosition{.x = 864.0F, .y = 496.0F};
     constexpr double FixedStepSeconds = 1.0 / 120.0;
 
     struct App
@@ -34,10 +50,27 @@ namespace
         bool minimized = false;
     };
 
+    auto Log(SDL_LogPriority priority, std::string_view message) -> void
+    {
+        // SDL logging is printf-style, so preformatted text goes through a fixed format.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, priority, "%.*s", static_cast<int>(std::size(message)), std::data(message));
+    }
+
     auto Fail(const char* operation) -> SDL_AppResult
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s: %s", operation, SDL_GetError());
+        Log(SDL_LOG_PRIORITY_ERROR, std::format("{}: {}", operation, SDL_GetError()));
         return SDL_APP_FAILURE;
+    }
+
+    auto SetDrawColor(SDL_Renderer* renderer, SDL_Color color) -> bool
+    {
+        return SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    }
+
+    auto RenderText(SDL_Renderer* renderer, SDL_FPoint position, const char* text) -> bool
+    {
+        return SDL_RenderDebugText(renderer, position.x, position.y, text);
     }
 
     auto ResetClock(App& app) -> void
@@ -59,7 +92,7 @@ namespace
         {
             return;
         }
-        const SDL_FPoint point{x, y};
+        const SDL_FPoint point{.x = x, .y = y};
         if (SDL_PointInRectFloat(&point, &ResetButton))
         {
             ResetScene(app);
@@ -74,39 +107,40 @@ namespace
     auto Render(App& app) -> bool
     {
         auto* renderer = app.renderer;
-        if (!SDL_SetRenderDrawColor(renderer, 14, 20, 30, 255) || !SDL_RenderClear(renderer))
+        if (!SetDrawColor(renderer, BackgroundColor) || !SDL_RenderClear(renderer))
         {
             return false;
         }
 
-        const SDL_FRect field{evford::FieldLeft, evford::FieldTop, evford::FieldRight - evford::FieldLeft, evford::FieldBottom - evford::FieldTop};
-        if (!SDL_SetRenderDrawColor(renderer, 21, 31, 44, 255) || !SDL_RenderFillRect(renderer, &field)
-            || !SDL_SetRenderDrawColor(renderer, 48, 65, 84, 255) || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &ResetButton))
+        const SDL_FRect field{
+            .x = evford::FieldLeft, .y = evford::FieldTop, .w = evford::FieldRight - evford::FieldLeft, .h = evford::FieldBottom - evford::FieldTop};
+        if (!SetDrawColor(renderer, FieldColor) || !SDL_RenderFillRect(renderer, &field) || !SetDrawColor(renderer, BorderColor)
+            || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &ResetButton))
         {
             return false;
         }
 
-        for (std::size_t i = 0; i < evford::ParticleCount; ++i)
+        for (auto&& [rectangle, x, y] : std::views::zip(app.rectangles, app.world.x, app.world.y))
         {
-            app.rectangles[i] = {app.world.x[i], app.world.y[i], evford::ParticleSize, evford::ParticleSize};
+            rectangle = {.x = x, .y = y, .w = evford::ParticleSize, .h = evford::ParticleSize};
         }
         for (std::size_t batch = 0; batch < ColorCount; ++batch)
         {
-            const auto& color = Colors[batch];
-            if (!SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
-                || !SDL_RenderFillRects(renderer, std::data(app.rectangles) + batch * ParticlesPerColor, static_cast<int>(ParticlesPerColor)))
+            const auto rectangles = std::span{app.rectangles}.subspan(batch * ParticlesPerColor, ParticlesPerColor);
+            if (!SetDrawColor(renderer, Colors.at(batch))
+                || !SDL_RenderFillRects(renderer, std::data(rectangles), static_cast<int>(std::size(rectangles))))
             {
                 return false;
             }
         }
 
         // SDL's built-in debug font keeps this example entirely asset-free.
-        return SDL_SetRenderDrawColor(renderer, 228, 237, 247, 255) && SDL_RenderDebugText(renderer, 32.0F, 32.0F, "EVFORD / PARTICLE FIELD")
-               && SDL_RenderDebugText(renderer, 844.0F, 44.0F, "RESET") && SDL_SetRenderDrawColor(renderer, 150, 171, 194, 255)
-               && SDL_RenderDebugText(renderer, 32.0F, 56.0F, "1024 particles. Four color batches. One shared world.")
-               && SDL_RenderDebugText(renderer, 32.0F, 496.0F, "SPACE / CLICK / TAP  pause     R  reset     ESC  quit")
-               && SDL_SetRenderDrawColor(renderer, 107, 222, 195, 255)
-               && SDL_RenderDebugText(renderer, 864.0F, 496.0F, app.paused ? "PAUSED" : "RUNNING") && SDL_RenderPresent(renderer);
+        return SetDrawColor(renderer, TitleColor) && RenderText(renderer, TitlePosition, "EVFORD / PARTICLE FIELD")
+               && RenderText(renderer, ResetLabelPosition, "RESET") && SetDrawColor(renderer, TextColor)
+               && RenderText(renderer, SummaryPosition, "1024 particles. Four color batches. One shared world.")
+               && RenderText(renderer, ControlsPosition, "SPACE / CLICK / TAP  pause     R  reset     ESC  quit")
+               && SetDrawColor(renderer, StatusColor) && RenderText(renderer, StatusPosition, app.paused ? "PAUSED" : "RUNNING")
+               && SDL_RenderPresent(renderer);
     }
 }
 
@@ -115,37 +149,39 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
 {
     *appstate = nullptr;
     std::uint64_t frameLimit = 0;
-    for (int i = 1; i < argc; ++i)
+    for (const std::string_view argument : std::span{argv, static_cast<std::size_t>(argc)} | std::views::drop(1))
     {
-        const std::string_view argument(argv[i]);
         constexpr std::string_view prefix = "--frames=";
         if (argument == "--help")
         {
-            SDL_Log("Usage: evford [--frames=N]  (N must be positive; omit for interactive mode)");
+            Log(SDL_LOG_PRIORITY_INFO, "Usage: evford [--frames=N]  (N must be positive; omit for interactive mode)");
             return SDL_APP_SUCCESS;
         }
         if (argument.substr(0, std::size(prefix)) != prefix)
         {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unknown argument: %s", argv[i]);
+            Log(SDL_LOG_PRIORITY_ERROR, std::format("Unknown argument: {}", argument));
             return SDL_APP_FAILURE;
         }
         const auto value = argument.substr(std::size(prefix));
-        const auto parsed = std::from_chars(std::data(value), std::data(value) + std::size(value), frameLimit);
-        if (parsed.ec != std::errc{} || parsed.ptr != std::data(value) + std::size(value) || frameLimit == 0)
+        const auto* const first = std::data(value);
+        const auto* const last = std::next(first, std::ssize(value));
+        const auto parsed = std::from_chars(first, last, frameLimit);
+        if (parsed.ec != std::errc{} || parsed.ptr != last || frameLimit == 0)
         {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "--frames requires a positive integer");
+            Log(SDL_LOG_PRIORITY_ERROR, "--frames requires a positive integer");
             return SDL_APP_FAILURE;
         }
     }
 
-    auto* app = new (std::nothrow) App;
-    if (app == nullptr)
+    auto state = std::unique_ptr<App>(new (std::nothrow) App);
+    if (state == nullptr)
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unable to allocate application state");
+        Log(SDL_LOG_PRIORITY_ERROR, "Unable to allocate application state");
         return SDL_APP_FAILURE;
     }
-    *appstate = app; // SDL_AppQuit also runs after partially completed initialization.
-    app->frameLimit = frameLimit;
+    auto& app = *state;
+    *appstate = state.release(); // SDL_AppQuit also runs after partially completed initialization.
+    app.frameLimit = frameLimit;
     SDL_SetAppMetadata("Evford", "0.1.0", "org.aspire.evford");
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "60");
     if (!SDL_Init(SDL_INIT_VIDEO))
@@ -153,20 +189,20 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
         return Fail("Initialize SDL video");
     }
     if (!SDL_CreateWindowAndRenderer("Evford - particle field", evford::CanvasWidth, evford::CanvasHeight,
-                                     SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &app->window, &app->renderer))
+                                     SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &app.window, &app.renderer))
     {
         return Fail("Create window and renderer");
     }
-    if (!SDL_SetRenderLogicalPresentation(app->renderer, evford::CanvasWidth, evford::CanvasHeight, SDL_LOGICAL_PRESENTATION_LETTERBOX))
+    if (!SDL_SetRenderLogicalPresentation(app.renderer, evford::CanvasWidth, evford::CanvasHeight, SDL_LOGICAL_PRESENTATION_LETTERBOX))
     {
         return Fail("Set logical presentation");
     }
     // The callback-rate hint still limits desktop work if a backend cannot enable vsync.
-    if (!SDL_SetRenderVSync(app->renderer, 1))
+    if (!SDL_SetRenderVSync(app.renderer, 1))
     {
-        SDL_Log("Vsync unavailable: %s", SDL_GetError());
+        Log(SDL_LOG_PRIORITY_INFO, std::format("Vsync unavailable: {}", SDL_GetError()));
     }
-    ResetScene(*app);
+    ResetScene(app);
     return SDL_APP_CONTINUE;
 }
 
@@ -247,7 +283,7 @@ auto SDL_AppIterate(void* appstate) -> SDL_AppResult
 {
     auto& app = *static_cast<App*>(appstate);
     const auto now = SDL_GetTicksNS();
-    auto elapsed = static_cast<double>(now - app.previousTicks) / 1000000000.0;
+    auto elapsed = static_cast<double>(now - app.previousTicks) / static_cast<double>(SDL_NS_PER_SECOND);
     app.previousTicks = now;
     if (app.discardElapsed.exchange(false))
     {
@@ -277,14 +313,13 @@ auto SDL_AppIterate(void* appstate) -> SDL_AppResult
 }
 
 // NOLINTNEXTLINE(readability-identifier-naming)
-auto SDL_AppQuit(void* appstate, SDL_AppResult) -> void
+auto SDL_AppQuit(void* appstate, SDL_AppResult /*result*/) -> void
 {
-    auto* app = static_cast<App*>(appstate);
+    const std::unique_ptr<App> app(static_cast<App*>(appstate));
     if (app != nullptr)
     {
         SDL_DestroyRenderer(app->renderer);
         SDL_DestroyWindow(app->window);
-        delete app;
     }
     // SDL calls SDL_Quit after this callback.
 }
