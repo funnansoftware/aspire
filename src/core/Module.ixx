@@ -9,4 +9,5 @@ export import :object;
 export import :objectfactory;
 export import :overloaded;
 export import :property;
+export import :service;
 export import :vec2;

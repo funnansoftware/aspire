@@ -14,6 +14,7 @@ target_sources(${PROJECT_NAME} PUBLIC
         ObjectFactory.ixx
         Overloaded.ixx
         Property.ixx
+        Service.ixx
         Vec2.ixx
 )
 
