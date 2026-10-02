@@ -56,6 +56,8 @@ export namespace aspire::core
                 render();
             }
 
+            shutdown();
+
             return EXIT_SUCCESS;
         }
 
