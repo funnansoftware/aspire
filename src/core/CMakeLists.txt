@@ -25,4 +25,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     nameof::nameof
 )
 
-add_subdirectory(test)
+if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(test)
+endif()

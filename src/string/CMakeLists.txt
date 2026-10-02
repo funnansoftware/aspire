@@ -11,4 +11,6 @@ target_sources(${PROJECT_NAME} PUBLIC
         ToString.ixx
 )
 
-add_subdirectory(test)
+if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(test)
+endif()

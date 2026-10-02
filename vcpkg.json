@@ -19,7 +19,9 @@
                 }
             ]
         },
-        "gtest"
+        "gtest",
+        "nameof",
+        "nlohmann-json"
     ],
     "default-features": [
         "ibus"

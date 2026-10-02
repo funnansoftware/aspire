@@ -13,9 +13,12 @@ workflows can also be started manually from the Actions tab.
 | Web | Devcontainer: Ubuntu 26.04 / pinned Emscripten SDK | `wasm32-emscripten-emcc-release` | `aspire-web` |
 
 Each workflow configures, builds, installs, and uploads a Release build of the
-`evford` app. Native workflows run the world test and the SDL smoke test using
-its dummy video driver. Web builds check that the installed HTML, JavaScript,
-and WebAssembly files are nonempty; this does not replace a browser runtime test.
+`evford` app. The build also compiles the `src/` libraries (`aspire-core`,
+`aspire-parser`, `aspire-string`). Native workflows run their unit tests, the
+`evford` world test, and the SDL smoke test using its dummy video driver. Web
+builds compile the libraries but skip all tests, and check that the installed
+HTML, JavaScript, and WebAssembly files are nonempty; this does not replace a
+browser runtime test.
 
 Linux and Web use the shared `devcontainer` action to build
 `.devcontainer/Dockerfile` with the same `.devcontainer` build context as local

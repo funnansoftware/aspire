@@ -12,6 +12,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 enable_testing()
     
 find_package(GTest CONFIG REQUIRED)
+include(GoogleTest)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     aspire-core

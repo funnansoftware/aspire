@@ -12,7 +12,8 @@ project(aspire)
 include(CTest)
 include(GNUInstallDirs)
 
-# The legacy src/ libraries and srd-lite app are not part of the SDL3 build.
+# The raylib-based srd-lite app is not part of the SDL3 build.
+add_subdirectory(src)
 add_subdirectory(app)
 
 # Android packaging is retained in cmake/build-apk.cmake but temporarily disabled.
