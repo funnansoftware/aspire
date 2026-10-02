@@ -15,6 +15,13 @@ export namespace aspire::core
     class Object : public std::enable_shared_from_this<Object>
     {
     public:
+        enum class State : std::uint8_t
+        {
+            Created,
+            Started,
+            Shutdown,
+        };
+
         Object() = default;
         virtual ~Object() = default;
 
@@ -34,20 +41,35 @@ export namespace aspire::core
             return name_;
         }
 
-        auto addChild(std::shared_ptr<Object> x) -> void
+        [[nodiscard]] auto getState() const -> State
         {
-            if (x == nullptr)
+            return state_;
+        }
+
+        [[nodiscard]] auto isStarted() const -> bool
+        {
+            return state_ == State::Started;
+        }
+
+        // Returns true if added. Callers that built the child themselves may ignore the result.
+        auto addChild(std::shared_ptr<Object> x) -> bool
+        {
+            if (x == nullptr || x->parent_.lock() != nullptr)
             {
-                return;
+                // One parent only: remove() it first to move it.
+                return false;
             }
 
             x->parent_ = weak_from_this();
             auto& child = children_.emplace_back(std::move(x));
 
-            if (started_)
+            if (state_ == State::Started)
             {
+                // Late start: the child's subtree is already formed.
                 child->startup();
             }
+
+            return true;
         }
 
         auto getChild(std::size_t x = 0) -> std::shared_ptr<Object>
@@ -112,13 +134,20 @@ export namespace aspire::core
 
         auto remove() -> void
         {
-            if (auto parent = parent_.lock())
+            const auto parent = parent_.lock();
+
+            if (parent == nullptr)
             {
-                auto& siblings = parent->children_;
-                std::erase(siblings, shared_from_this());
+                return;
             }
 
+            // Erasing below may drop the parent's reference to this.
+            const auto self = shared_from_this();
+            // While still attached, so hooks can reach the parent.
+            shutdown();
             parent_.reset();
+            // Last: touch no members afterwards.
+            std::erase(parent->children_, self);
         }
 
         auto getParent() const -> std::shared_ptr<Object>
@@ -167,20 +196,64 @@ export namespace aspire::core
             return properties_;
         }
 
-        // NOLINTNEXTLINE(misc-no-recursion)
         auto startup() -> void
         {
-            if (!started_)
+            // Depth-first, parent before children, first child first.
+            std::vector<std::shared_ptr<Object>> pending{shared_from_this()};
+
+            while (!std::empty(pending))
             {
-                started_ = true;
-                onStartup();
+                const auto object = std::move(pending.back());
+                pending.pop_back();
+
+                if (object->state_ == State::Started)
+                {
+                    continue;
+                }
+
+                // Before the hook: a re-entrant call returns, and addChild() starts new children.
+                object->state_ = State::Started;
+                object->onStartup();
+
+                // Snapshot taken after the hook, which may add or remove children. Reversed so the first child pops first.
+                pending.insert(std::end(pending), std::rbegin(object->children_), std::rend(object->children_));
             }
+        }
 
-            auto children = children_;
+        auto shutdown() -> void
+        {
+            // Children last to first, each before its parent's hook. An object is pushed unexpanded (false),
+            // then again as expanded (true) once its children are queued, which is when its hook runs.
+            std::vector<std::pair<std::shared_ptr<Object>, bool>> pending;
+            pending.emplace_back(shared_from_this(), false);
 
-            for (auto& child : children)
+            while (!std::empty(pending))
             {
-                child->startup();
+                const auto frame = std::move(pending.back());
+                pending.pop_back();
+
+                const auto& object = frame.first;
+
+                if (frame.second)
+                {
+                    object->onShutdown();
+                    continue;
+                }
+
+                if (object->state_ != State::Started)
+                {
+                    continue;
+                }
+
+                // Before the children: addChild() starts nothing during teardown.
+                object->state_ = State::Shutdown;
+                pending.emplace_back(object, true);
+
+                for (const auto& child : object->children_)
+                {
+                    // Last child pops first.
+                    pending.emplace_back(child, false);
+                }
             }
         }
 
@@ -257,6 +330,10 @@ export namespace aspire::core
         {
         }
 
+        virtual auto onShutdown() noexcept -> void
+        {
+        }
+
         virtual auto onEvent(aspire::core::Event& /*unused*/) -> void
         {
         }
@@ -286,6 +363,6 @@ export namespace aspire::core
         std::vector<std::unique_ptr<Property>> properties_;
         std::vector<std::shared_ptr<Object>> children_;
         std::weak_ptr<Object> parent_;
-        bool started_{false};
+        State state_{State::Created};
     };
 }

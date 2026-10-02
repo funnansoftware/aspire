@@ -32,6 +32,11 @@ export namespace aspire::core
             }
         }
 
+        auto onShutdown() noexcept -> void override
+        {
+            data_.clear();
+        }
+
     private:
         std::unordered_map<std::string, std::shared_ptr<Data>> data_;
     };
