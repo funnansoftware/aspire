@@ -677,10 +677,25 @@ private:
     std::string name_;
 };
 
-}  // namespace project::module
+}
 
 #endif  // PROJECT_MODULE_WIDGET_H
 ```
+
+### Comments (Project Rule)
+
+Put a comment on its own line directly above the code it describes. Never put a comment after code on the same line, and don't align trailing comments in a column. Trailing comments get pushed past the line limit by reformatting, drift out of alignment, and hide which statement they belong to. This applies to `//` comments and to end-of-block markers such as `// namespace foo`.
+
+```cpp
+// DO: comment above the statement
+// Before the hook: a re-entrant call returns, and addChild() starts new children.
+state_ = State::Started;
+
+// DON'T: trailing comment
+state_ = State::Started; // Before the hook: a re-entrant call returns.
+```
+
+Header guard `#endif` comments are the one exception, since tooling and convention expect them. Suppression comments such as `// NOLINT` follow the clang-tidy rules below, which already require `NOLINTNEXTLINE` on the preceding line.
 
 ### Naming Conventions (Project Rule, enforced by `.clang-tidy`)
 
@@ -718,7 +733,7 @@ private:
     int port_;
 };
 
-}  // namespace myProject
+}
 ```
 
 ### Anti-Patterns
@@ -771,6 +786,7 @@ Before marking C++ work complete:
 
 - [ ] Functions use trailing return types (`auto f() -> T`)
 - [ ] Containers accessed via `std::begin`/`std::end`/`std::size`/`std::empty`, not members
+- [ ] Comments sit on their own line above the code, never trailing it
 - [ ] Names follow the `.clang-tidy` conventions (CamelCase types/namespace-scope functions/constants, camelBack members/locals/params, `_` suffix on private/protected members)
 - [ ] No raw `new`/`delete` -- use smart pointers or RAII (R.11)
 - [ ] Objects initialized at declaration (ES.20)
