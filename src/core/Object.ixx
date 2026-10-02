@@ -79,7 +79,8 @@ export namespace aspire::core
                 return nullptr;
             }
 
-            return children_.at(x);
+            // NOLINTNEXTLINE (cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+            return children_[x];
         }
 
         template <ObjectType T>
@@ -92,7 +93,8 @@ export namespace aspire::core
                 return nullptr;
             }
 
-            return children.at(x);
+            // NOLINTNEXTLINE (cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+            return children[x];
         }
 
         template <ObjectType T>
@@ -143,9 +145,11 @@ export namespace aspire::core
 
             // Erasing below may drop the parent's reference to this.
             const auto self = shared_from_this();
+
             // While still attached, so hooks can reach the parent.
             shutdown();
             parent_.reset();
+
             // Last: touch no members afterwards.
             std::erase(parent->children_, self);
         }
