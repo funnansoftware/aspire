@@ -49,6 +49,8 @@ TEST(ReadFile, basic)
     EXPECT_EQ(obj->getName(), "ground_0");
     auto* const jsonObj = dynamic_cast<JsonObject*>(obj.get());
     ASSERT_NE(jsonObj, nullptr);
-    EXPECT_EQ(jsonObj->texture, "path/to/texture.png");
+    // Compare as a string: GCC 15 cannot instantiate gtest's printer for std::filesystem::path
+    // when <ostream> is included alongside `import std;` (operator<< for std::quoted is not found).
+    EXPECT_EQ(jsonObj->texture.generic_string(), "path/to/texture.png");
     EXPECT_EQ(jsonObj->rect, (std::array<int, 4>{0, 0, 100, 100}));
 }
