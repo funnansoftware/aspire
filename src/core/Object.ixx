@@ -222,21 +222,19 @@ export namespace aspire::core
 
         auto shutdown() -> void
         {
-            // Children last to first, each before its parent's hook. A frame is pushed unexpanded, then again once its children are queued.
-            struct Frame
-            {
-                std::shared_ptr<Object> object;
-                bool expanded;
-            };
-
-            std::vector<Frame> pending{{.object = shared_from_this(), .expanded = false}};
+            // Children last to first, each before its parent's hook. An object is pushed unexpanded (false),
+            // then again as expanded (true) once its children are queued, which is when its hook runs.
+            std::vector<std::pair<std::shared_ptr<Object>, bool>> pending;
+            pending.emplace_back(shared_from_this(), false);
 
             while (!std::empty(pending))
             {
-                const auto [object, expanded] = std::move(pending.back());
+                const auto frame = std::move(pending.back());
                 pending.pop_back();
 
-                if (expanded)
+                const auto& object = frame.first;
+
+                if (frame.second)
                 {
                     object->onShutdown();
                     continue;
@@ -249,12 +247,12 @@ export namespace aspire::core
 
                 // Before the children: addChild() starts nothing during teardown.
                 object->state_ = State::Shutdown;
-                pending.push_back({.object = object, .expanded = true});
+                pending.emplace_back(object, true);
 
                 for (const auto& child : object->children_)
                 {
                     // Last child pops first.
-                    pending.push_back({.object = child, .expanded = false});
+                    pending.emplace_back(child, false);
                 }
             }
         }
