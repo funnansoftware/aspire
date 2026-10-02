@@ -5,7 +5,8 @@
             "name": "target-arm64-macos",
             "hidden": true,
             "cacheVariables": {
-                "VCPKG_TARGET_TRIPLET": "arm64-osx"
+                "VCPKG_TARGET_TRIPLET": "arm64-osx",
+                "CMAKE_OSX_DEPLOYMENT_TARGET": "26.0"
             }
         }
     ]

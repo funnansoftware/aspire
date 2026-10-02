@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    # Floating-point std::from_chars in libc++ needs macOS 26, so build with its SDK.
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
