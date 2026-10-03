@@ -6,7 +6,6 @@ target_sources(${PROJECT_NAME} PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
         Data.ixx
         Database.ixx
-        DataService.ixx
         Engine.ixx
         Event.ixx
         Module.ixx
@@ -14,6 +13,7 @@ target_sources(${PROJECT_NAME} PUBLIC
         ObjectFactory.ixx
         Overloaded.ixx
         Property.ixx
+        Service.ixx
         Vec2.ixx
 )
 

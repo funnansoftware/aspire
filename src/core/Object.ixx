@@ -2,8 +2,6 @@ export module aspire.core:object;
 
 import std;
 import :property;
-import :event;
-import :overloaded;
 
 export namespace aspire::core
 {
@@ -22,7 +20,14 @@ export namespace aspire::core
             Shutdown,
         };
 
-        Object() = default;
+        Object()
+        {
+            registerProperty("name", name_);
+
+            // Read-only: only startup() and shutdown() may change the state, so JSON and other setters can't skip a hook.
+            registerProperty("state", std::as_const(state_));
+        }
+
         virtual ~Object() = default;
 
         Object(const Object&) = delete;
@@ -51,12 +56,19 @@ export namespace aspire::core
             return state_ == State::Started;
         }
 
-        // Returns true if added. Callers that built the child themselves may ignore the result.
+        /// @brief Attaches an object as the last child of this one.
+        ///
+        /// If this object is `State::Started`, the child and its subtree start immediately. Otherwise they start when
+        /// this object does. Callers that built the child themselves may ignore the result.
+        ///
+        /// @param x The object to attach. Must not already have a parent; call `remove()` on it first to move it.
+        /// @return `true` if `x` was attached; `false` if `x` is null, already has a parent, or is this object or one
+        /// of its ancestors.
         auto addChild(std::shared_ptr<Object> x) -> bool
         {
-            if (x == nullptr || x->parent_.lock() != nullptr)
+            if (x == nullptr || x->parent_.lock() != nullptr || isSelfOrAncestor(*x))
             {
-                // One parent only: remove() it first to move it.
+                // One parent only, and no cycles: remove() it first to move it.
                 return false;
             }
 
@@ -179,7 +191,8 @@ export namespace aspire::core
 
         auto registerProperty(std::string_view name, JsonSerializable auto& x) -> void
         {
-            properties_.emplace_back(std::make_unique<TemplateProperty<std::decay_t<decltype(x)>>>(name, x));
+            // Keep const: a const reference registers a read-only property.
+            properties_.emplace_back(std::make_unique<TemplateProperty<std::remove_reference_t<decltype(x)>>>(name, x));
         }
 
         auto getProperty(std::string_view name) const -> Property*
@@ -261,74 +274,6 @@ export namespace aspire::core
             }
         }
 
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto event(aspire::core::Event& x) -> void
-        {
-            const auto handled = std::visit(
-                aspire::core::Overloaded{
-                    [](std::unique_ptr<EventUser>& e) { return e->handled; },
-                    [](auto& e) { return e.handled; },
-                },
-                x);
-
-            if (handled)
-            {
-                return;
-            }
-
-            onEvent(x);
-
-            // Copy children to avoid modification during iteration.
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->event(x);
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto update(float x) -> void
-        {
-            onUpdate(x);
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->update(x);
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto updateFixed(float x) -> void
-        {
-            onUpdateFixed(x);
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->updateFixed(x);
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto render() const -> void
-        {
-            onRenderPre();
-            onRender();
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->render();
-            }
-
-            onRenderPost();
-        }
-
     protected:
         virtual auto onStartup() -> void
         {
@@ -338,31 +283,27 @@ export namespace aspire::core
         {
         }
 
-        virtual auto onEvent(aspire::core::Event& /*unused*/) -> void
-        {
-        }
-
-        virtual auto onUpdate(float /*unused*/) -> void
-        {
-        }
-
-        virtual auto onUpdateFixed(float /*unused*/) -> void
-        {
-        }
-
-        virtual auto onRenderPre() const -> void
-        {
-        }
-
-        virtual auto onRender() const -> void
-        {
-        }
-
-        virtual auto onRenderPost() const -> void
-        {
-        }
-
     private:
+        // True if x is this object or one of its ancestors, so adding it as a child would make a cycle. The parent
+        // check in addChild() already rejects every ancestor but the root; this also catches the root and x == this.
+        [[nodiscard]] auto isSelfOrAncestor(const Object& x) const -> bool
+        {
+            if (&x == this)
+            {
+                return true;
+            }
+
+            for (auto ancestor = parent_.lock(); ancestor != nullptr; ancestor = ancestor->parent_.lock())
+            {
+                if (ancestor.get() == &x)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         std::string name_;
         std::vector<std::unique_ptr<Property>> properties_;
         std::vector<std::shared_ptr<Object>> children_;

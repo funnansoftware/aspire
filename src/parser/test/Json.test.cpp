@@ -54,3 +54,35 @@ TEST(ReadFile, basic)
     EXPECT_EQ(jsonObj->texture.generic_string(), "path/to/texture.png");
     EXPECT_EQ(jsonObj->rect, (std::array<int, 4>{0, 0, 100, 100}));
 }
+
+TEST(ReadFile, readOnlyPropertyIsSkipped)
+{
+    aspire::core::ObjectFactory factory;
+    factory.registerObject<JsonObject>();
+
+    const auto tmp = std::filesystem::temp_directory_path() / "aspire-parser-test-read-only";
+    std::filesystem::create_directories(tmp);
+    const auto file = tmp / "test.json";
+
+    // State 1 is Started. Applying it would let the object skip onStartup().
+    // Keys load in sorted order, so "texture" comes after "state".
+    const auto* const json = R"({
+        "state": 1,
+        "texture": "after.png",
+        "type": "JsonObject"
+    })";
+
+    std::ofstream(file) << json;
+
+    const auto obj = aspire::parser::ReadFile(factory, file);
+
+    EXPECT_GT(std::filesystem::remove_all(tmp), 0);
+
+    ASSERT_NE(obj, nullptr);
+    EXPECT_EQ(obj->getState(), aspire::core::Object::State::Created);
+
+    // Properties after the skipped one still load.
+    auto* const jsonObj = dynamic_cast<JsonObject*>(obj.get());
+    ASSERT_NE(jsonObj, nullptr);
+    EXPECT_EQ(jsonObj->texture.generic_string(), "after.png");
+}

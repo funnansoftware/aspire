@@ -78,6 +78,13 @@ export namespace aspire::parser
                 continue;
             }
 
+            if (property->isReadOnly())
+            {
+                std::println("Property is read-only: {}", item.key());
+                // Add error.
+                continue;
+            }
+
             property->setValueJson(item.value());
         }
 

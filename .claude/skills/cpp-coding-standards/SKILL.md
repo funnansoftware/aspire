@@ -695,6 +695,8 @@ state_ = State::Started;
 state_ = State::Started; // Before the hook: a re-entrant call returns.
 ```
 
+Documentation comments on declarations use Doxygen `///` lines and follow the `cpp-documentation` skill. They also go on their own lines above the code.
+
 Header guard `#endif` comments are the one exception, since tooling and convention expect them. Suppression comments such as `// NOLINT` follow the clang-tidy rules below, which already require `NOLINTNEXTLINE` on the preceding line.
 
 ### Naming Conventions (Project Rule, enforced by `.clang-tidy`)

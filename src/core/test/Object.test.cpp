@@ -170,40 +170,54 @@ TEST(Object, getChildrenOfType)
 TEST(Object, getProperties)
 {
     auto obj = std::make_shared<TestObjectWithProperty>();
-    auto properties = obj->getProperties();
-    ASSERT_EQ(std::size(properties), 1);
+    std::vector<std::string_view> names;
+
+    for (const auto& property : obj->getProperties())
+    {
+        names.emplace_back(property->name());
+    }
+
+    // Object's own properties come first, since its constructor runs first.
+    EXPECT_EQ(names, (std::vector<std::string_view>{"name", "state", "value"}));
 }
 
 TEST(Object, getPropertyNameAndValue)
 {
     auto obj = std::make_shared<TestObjectWithProperty>();
-    auto properties = obj->getProperties();
-    ASSERT_EQ(std::size(properties), 1);
-    EXPECT_EQ(properties.front()->name(), "value");
-    EXPECT_EQ(properties.front()->getValueAs<int>(), InitialPropertyValue);
+    const auto* property = obj->getProperty("value");
+    ASSERT_NE(property, nullptr);
+    EXPECT_EQ(property->name(), "value");
+    EXPECT_EQ(property->getValueAs<int>(), InitialPropertyValue);
 }
 
-TEST(Object, events)
+TEST(Object, namePropertyIsWritable)
 {
-    struct ObjectTestEvent : public aspire::core::Object
-    {
-    protected:
-        auto onEvent(aspire::core::Event& x) -> void override
-        {
-            auto* eventUser = std::get_if<std::unique_ptr<aspire::core::EventUser>>(&x);
+    auto obj = std::make_shared<aspire::core::Object>();
+    auto* property = obj->getProperty("name");
+    ASSERT_NE(property, nullptr);
+    EXPECT_FALSE(property->isReadOnly());
 
-            ASSERT_NE(eventUser, nullptr);
-            (*eventUser)->handled = true;
-        }
-    };
+    property->setValueString(R"("renamed")");
+    EXPECT_EQ(obj->getName(), "renamed");
+}
 
-    auto obj = std::make_shared<ObjectTestEvent>();
-    auto e = std::make_unique<aspire::core::EventUser>();
-    auto* ptr = e.get();
-    aspire::core::Event event = std::move(e);
-    obj->event(event);
+TEST(Object, statePropertyIsReadOnly)
+{
+    using State = aspire::core::Object::State;
 
-    EXPECT_TRUE(ptr->handled);
+    auto obj = std::make_shared<aspire::core::Object>();
+    auto* property = obj->getProperty("state");
+    ASSERT_NE(property, nullptr);
+    EXPECT_TRUE(property->isReadOnly());
+
+    // Setting it does nothing: only startup() and shutdown() change the state.
+    property->setValueAny(State::Started);
+    property->setValueString("1");
+    EXPECT_EQ(obj->getState(), State::Created);
+
+    // Reading it follows the live state.
+    obj->startup();
+    EXPECT_EQ(property->getValueAs<State>(), State::Started);
 }
 
 using State = aspire::core::Object::State;
@@ -338,6 +352,40 @@ TEST(Object, addChildRejectsDuplicateOnSameParent)
     EXPECT_TRUE(parent->addChild(child));
     EXPECT_FALSE(parent->addChild(child));
     EXPECT_EQ(std::size(parent->getChildren()), 1);
+}
+
+TEST(Object, addChildRejectsSelf)
+{
+    Log log;
+    const auto obj = Make(log, "a");
+    obj->startup();
+
+    EXPECT_FALSE(obj->addChild(obj));
+    EXPECT_TRUE(std::empty(obj->getChildren()));
+    EXPECT_EQ(obj->getParent(), nullptr);
+    EXPECT_EQ(log, (Log{"start a"}));
+}
+
+TEST(Object, addChildRejectsAncestor)
+{
+    Log log;
+    const auto root = Make(log, "root");
+    const auto a = Make(log, "a");
+    const auto a1 = Make(log, "a1");
+    root->addChild(a);
+    a->addChild(a1);
+    root->startup();
+
+    // The root has no parent, so only the cycle check stops this.
+    EXPECT_FALSE(a1->addChild(root));
+    EXPECT_TRUE(std::empty(a1->getChildren()));
+    EXPECT_EQ(root->getParent(), nullptr);
+
+    // A non-root ancestor is already rejected for having a parent.
+    EXPECT_FALSE(a1->addChild(a));
+    EXPECT_TRUE(std::empty(a1->getChildren()));
+
+    EXPECT_EQ(log, (Log{"start root", "start a", "start a1"}));
 }
 
 TEST(Object, addChildAcceptsObjectAfterRemove)

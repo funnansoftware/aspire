@@ -1,5 +1,5 @@
 {
-    "type": "DataService",
+    "type": "Object",
     "objects": [
         {
             "type": "Character",

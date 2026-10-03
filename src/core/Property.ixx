@@ -35,6 +35,13 @@ export namespace aspire::core
 
         [[nodiscard]] virtual auto typeInfo() const -> const std::type_info& = 0;
 
+        /// @brief Reports whether the property can only be read.
+        ///
+        /// A property registered from a const reference is read-only. Its setters do nothing, and `ReadJson` skips it.
+        ///
+        /// @return `true` if the setters leave the value unchanged.
+        [[nodiscard]] virtual auto isReadOnly() const -> bool = 0;
+
         template <JsonSerializable T>
         [[nodiscard]] auto isType() const -> bool
         {
@@ -59,6 +66,8 @@ export namespace aspire::core
         std::string name_;
     };
 
+    /// @brief A property that reads and writes a variable owned by someone else.
+    /// @tparam T The variable's type. A const `T` makes the property read-only.
     template <JsonSerializable T>
     class TemplateProperty : public Property
     {
@@ -72,9 +81,17 @@ export namespace aspire::core
             return typeid(T);
         }
 
+        [[nodiscard]] auto isReadOnly() const -> bool override
+        {
+            return std::is_const_v<T>;
+        }
+
         auto setValueAny(std::any x) -> void override
         {
-            value_ = std::any_cast<T>(x);
+            if constexpr (!std::is_const_v<T>)
+            {
+                value_ = std::any_cast<T>(x);
+            }
         }
 
         [[nodiscard]] auto getValueAny() const -> std::any override
@@ -84,7 +101,10 @@ export namespace aspire::core
 
         auto setValueJson(const nlohmann::json& value) -> void override
         {
-            value_ = value.get<T>();
+            if constexpr (!std::is_const_v<T>)
+            {
+                value_ = value.get<T>();
+            }
         }
 
         [[nodiscard]] auto getValueJson() const -> nlohmann::json override
@@ -94,7 +114,10 @@ export namespace aspire::core
 
         auto setValueString(std::string_view value) -> void override
         {
-            value_ = nlohmann::json::parse(value).get<T>();
+            if constexpr (!std::is_const_v<T>)
+            {
+                value_ = nlohmann::json::parse(value).get<T>();
+            }
         }
 
         [[nodiscard]] auto getValueString() const -> std::string override
