@@ -170,17 +170,54 @@ TEST(Object, getChildrenOfType)
 TEST(Object, getProperties)
 {
     auto obj = std::make_shared<TestObjectWithProperty>();
-    auto properties = obj->getProperties();
-    ASSERT_EQ(std::size(properties), 1);
+    std::vector<std::string_view> names;
+
+    for (const auto& property : obj->getProperties())
+    {
+        names.emplace_back(property->name());
+    }
+
+    // Object's own properties come first, since its constructor runs first.
+    EXPECT_EQ(names, (std::vector<std::string_view>{"name", "state", "value"}));
 }
 
 TEST(Object, getPropertyNameAndValue)
 {
     auto obj = std::make_shared<TestObjectWithProperty>();
-    auto properties = obj->getProperties();
-    ASSERT_EQ(std::size(properties), 1);
-    EXPECT_EQ(properties.front()->name(), "value");
-    EXPECT_EQ(properties.front()->getValueAs<int>(), InitialPropertyValue);
+    const auto* property = obj->getProperty("value");
+    ASSERT_NE(property, nullptr);
+    EXPECT_EQ(property->name(), "value");
+    EXPECT_EQ(property->getValueAs<int>(), InitialPropertyValue);
+}
+
+TEST(Object, namePropertyIsWritable)
+{
+    auto obj = std::make_shared<aspire::core::Object>();
+    auto* property = obj->getProperty("name");
+    ASSERT_NE(property, nullptr);
+    EXPECT_FALSE(property->isReadOnly());
+
+    property->setValueString(R"("renamed")");
+    EXPECT_EQ(obj->getName(), "renamed");
+}
+
+TEST(Object, statePropertyIsReadOnly)
+{
+    using State = aspire::core::Object::State;
+
+    auto obj = std::make_shared<aspire::core::Object>();
+    auto* property = obj->getProperty("state");
+    ASSERT_NE(property, nullptr);
+    EXPECT_TRUE(property->isReadOnly());
+
+    // Setting it does nothing: only startup() and shutdown() change the state.
+    property->setValueAny(State::Started);
+    property->setValueString("1");
+    EXPECT_EQ(obj->getState(), State::Created);
+
+    // Reading it follows the live state.
+    obj->startup();
+    EXPECT_EQ(property->getValueAs<State>(), State::Started);
 }
 
 using State = aspire::core::Object::State;

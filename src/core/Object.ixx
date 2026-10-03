@@ -23,7 +23,9 @@ export namespace aspire::core
         Object()
         {
             registerProperty("name", name_);
-            registerProperty("state", state_);
+
+            // Read-only: only startup() and shutdown() may change the state, so JSON and other setters can't skip a hook.
+            registerProperty("state", std::as_const(state_));
         }
 
         virtual ~Object() = default;
@@ -182,7 +184,8 @@ export namespace aspire::core
 
         auto registerProperty(std::string_view name, JsonSerializable auto& x) -> void
         {
-            properties_.emplace_back(std::make_unique<TemplateProperty<std::decay_t<decltype(x)>>>(name, x));
+            // Keep const: a const reference registers a read-only property.
+            properties_.emplace_back(std::make_unique<TemplateProperty<std::remove_reference_t<decltype(x)>>>(name, x));
         }
 
         auto getProperty(std::string_view name) const -> Property*

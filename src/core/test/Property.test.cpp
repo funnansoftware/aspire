@@ -18,12 +18,28 @@ TEST(TemplateProperty, int)
     int value{};
     aspire::core::TemplateProperty<int> prop("test", value);
     EXPECT_EQ(prop.name(), "test");
+    EXPECT_FALSE(prop.isReadOnly());
 
     prop.setValueAny(expectedValue);
     EXPECT_EQ(std::any_cast<int>(prop.getValueAny()), expectedValue);
 
     prop.setValueString("42");
     EXPECT_EQ(std::any_cast<int>(prop.getValueAny()), expectedValue);
+}
+
+TEST(TemplateProperty, constIsReadOnly)
+{
+    constexpr int initialValue = 42;
+    constexpr int otherValue = 7;
+    const int value{initialValue};
+    aspire::core::TemplateProperty<const int> prop("test", value);
+    EXPECT_TRUE(prop.isReadOnly());
+    EXPECT_TRUE(prop.isType<int>());
+
+    prop.setValueAny(otherValue);
+    prop.setValueString("7");
+    EXPECT_EQ(value, initialValue);
+    EXPECT_EQ(prop.getValueAs<int>(), initialValue);
 }
 
 TEST(TemplateProperty, string)
