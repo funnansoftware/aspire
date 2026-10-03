@@ -32,7 +32,7 @@ export namespace aspire::core
         ///
         /// Called after `update()`, once for each fixed interval that has elapsed, so possibly not at all in a frame.
         ///
-        /// @param x Seconds in one fixed step. The same value on every call.
+        /// @param x Seconds in one fixed step: Engine's fixed interval, which stays the same until the host changes it.
         virtual auto updateFixed(float x) -> void = 0;
 
         /// @brief Draws, or queues drawing for, the current frame.
