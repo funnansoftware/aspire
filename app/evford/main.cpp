@@ -180,11 +180,10 @@ namespace
                 return false;
             }
 
-            // Rendering consumes simulation columns into one reusable SDL buffer.
-            for (auto&& [rectangle, x, y] : std::views::zip(rectangles_, world_.x, world_.y))
-            {
-                rectangle = {.x = x, .y = y, .w = evford::ParticleSize, .h = evford::ParticleSize};
-            }
+            // Rendering consumes simulation columns into one reusable SDL buffer. Not std::views::zip: with
+            // aspire.core imported, libc++'s zip_view hits ambiguous partial specializations under clang 22.
+            std::ranges::transform(world_.x, world_.y, std::begin(rectangles_),
+                                   [](float x, float y) { return SDL_FRect{.x = x, .y = y, .w = evford::ParticleSize, .h = evford::ParticleSize}; });
             for (std::size_t batch = 0; batch < ColorCount; ++batch)
             {
                 const auto rectangles = std::span{rectangles_}.subspan(batch * ParticlesPerColor, ParticlesPerColor);
