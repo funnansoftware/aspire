@@ -51,17 +51,17 @@ export namespace aspire::core
 
             const auto elapsed = std::clamp(x, std::chrono::nanoseconds::zero(), MaxElapsed);
             const auto dt = std::chrono::duration<float>{elapsed}.count();
-            const auto dtFixed = std::chrono::duration<float>{IntervalFixed}.count();
+            const auto dtFixed = std::chrono::duration<float>{intervalFixed_}.count();
 
             dispatchEvents();
             forEachService([dt](Service& service) { service.update(dt); });
 
             accumulator_ += elapsed;
 
-            while (accumulator_ >= IntervalFixed)
+            while (accumulator_ >= intervalFixed_)
             {
                 forEachService([dtFixed](Service& service) { service.updateFixed(dtFixed); });
-                accumulator_ -= IntervalFixed;
+                accumulator_ -= intervalFixed_;
             }
 
             forEachService([](Service& service) { service.render(); });
@@ -100,6 +100,25 @@ export namespace aspire::core
         {
             running_ = false;
             exitCode_ = x;
+        }
+
+        /// @brief Sets the length of one fixed step.
+        ///
+        /// Takes effect from the next frame. Time already accumulated toward a step carries over.
+        ///
+        /// @param x The step length. The default is 10 ms.
+        /// @pre `x` is greater than zero.
+        auto setIntervalFixed(std::chrono::nanoseconds x) -> void
+        {
+            assert(x > std::chrono::nanoseconds::zero());
+            intervalFixed_ = x;
+        }
+
+        /// @brief Reports the length of one fixed step.
+        /// @return The interval set by `setIntervalFixed()`, or 10 ms by default.
+        [[nodiscard]] auto getIntervalFixed() const -> std::chrono::nanoseconds
+        {
+            return intervalFixed_;
         }
 
         /// @brief Reports whether the loop should keep running.
@@ -148,10 +167,11 @@ export namespace aspire::core
         }
 
         // Static constexpr members fall under clang-tidy's GlobalConstant naming: CamelCase, no suffix.
-        static constexpr std::chrono::nanoseconds IntervalFixed{std::chrono::milliseconds{10}};
+        static constexpr std::chrono::nanoseconds DefaultIntervalFixed{std::chrono::milliseconds{10}};
         static constexpr std::chrono::nanoseconds MaxElapsed{std::chrono::milliseconds{50}};
 
         std::vector<Event> events_;
+        std::chrono::nanoseconds intervalFixed_{DefaultIntervalFixed};
         std::chrono::nanoseconds accumulator_{};
         int exitCode_{EXIT_SUCCESS};
 

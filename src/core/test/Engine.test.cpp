@@ -7,7 +7,7 @@ import aspire.core;
 
 namespace
 {
-    // Engine's fixed step and frame-length cap.
+    // Engine's default fixed step and its frame-length cap.
     constexpr std::chrono::milliseconds FixedStep{10};
     constexpr std::chrono::milliseconds MaxFrame{50};
     constexpr int MaxStepsPerFrame{5};
@@ -239,6 +239,25 @@ TEST(Engine, fixedStepsFollowElapsed)
 
     EXPECT_FLOAT_EQ(service->lastDtFixed(), Seconds(FixedStep));
     EXPECT_FLOAT_EQ(service->lastDt(), Seconds(FixedStep / 2));
+}
+
+TEST(Engine, intervalFixedIsSettable)
+{
+    Log log;
+    const auto engine = std::make_shared<aspire::core::Engine>();
+    const auto service = Make(log, "s");
+    engine->addChild(service);
+    engine->startup();
+
+    EXPECT_EQ(engine->getIntervalFixed(), FixedStep);
+
+    engine->setIntervalFixed(FixedStep / 2);
+    EXPECT_EQ(engine->getIntervalFixed(), FixedStep / 2);
+
+    // One default step of time is now two steps.
+    engine->iterate(FixedStep);
+    EXPECT_EQ(service->fixedSteps(), 2);
+    EXPECT_FLOAT_EQ(service->lastDtFixed(), Seconds(FixedStep / 2));
 }
 
 TEST(Engine, elapsedIsClamped)
