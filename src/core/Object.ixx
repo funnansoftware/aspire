@@ -20,7 +20,12 @@ export namespace aspire::core
             Shutdown,
         };
 
-        Object() = default;
+        Object()
+        {
+            registerProperty("name", name_);
+            registerProperty("state", state_);
+        }
+
         virtual ~Object() = default;
 
         Object(const Object&) = delete;
