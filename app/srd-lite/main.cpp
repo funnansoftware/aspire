@@ -15,7 +15,7 @@ auto main() -> int
 try
 {
     aspire::core::ObjectFactory factory;
-    factory.registerObject<aspire::core::DataService>();
+    factory.registerObject<aspire::core::Object>();
     factory.registerObject<sl::Character>();
     factory.registerObject<aspire::raylib::Texture>();
     factory.registerObject<aspire::raylib::TileMap>();
