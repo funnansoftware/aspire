@@ -25,6 +25,14 @@ namespace
     constexpr int WindowWidth{200};
     constexpr int WindowHeight{100};
 
+    // SDL reports finger positions normalized to the window, from 0 to 1.
+    constexpr float FingerPosition{0.5F};
+    constexpr float FingerDeltaX{0.1F};
+    constexpr float FingerDeltaY{0.2F};
+
+    // Render coordinates in the renderer test are this many times the window coordinates.
+    constexpr int RenderScale{2};
+
     auto KeyEvent(SDL_EventType type, SDL_Keycode key, bool repeat = false) -> SDL_Event
     {
         SDL_Event x{};
@@ -35,28 +43,27 @@ namespace
         return x;
     }
 
-    auto ButtonEvent(SDL_EventType type, Uint8 button, SDL_MouseID which = 0) -> SDL_Event
+    auto ButtonEvent(SDL_EventType type, Uint8 button) -> SDL_Event
     {
         SDL_Event x{};
         x.type = type;
         x.button.button = button;
         x.button.down = type == SDL_EVENT_MOUSE_BUTTON_DOWN;
-        x.button.which = which;
         x.button.x = PositionX;
         x.button.y = PositionY;
         return x;
     }
 
-    auto FingerEvent(SDL_EventType type, SDL_WindowID window, SDL_TouchID touch = 1) -> SDL_Event
+    auto FingerEvent(SDL_EventType type, SDL_WindowID window) -> SDL_Event
     {
         SDL_Event x{};
         x.type = type;
-        x.tfinger.touchID = touch;
+        x.tfinger.touchID = 1;
         x.tfinger.windowID = window;
-        x.tfinger.x = 0.5F;
-        x.tfinger.y = 0.5F;
-        x.tfinger.dx = 0.1F;
-        x.tfinger.dy = 0.2F;
+        x.tfinger.x = FingerPosition;
+        x.tfinger.y = FingerPosition;
+        x.tfinger.dx = FingerDeltaX;
+        x.tfinger.dy = FingerDeltaY;
         return x;
     }
 
@@ -200,12 +207,16 @@ TEST(ToEvent, wheelCarriesScrollAndUnflipsIt)
 
 TEST(ToEvent, mouseEventsFromTouchAreDropped)
 {
-    EXPECT_FALSE(aspire::sdl::ToEvent(ButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_BUTTON_LEFT, SDL_TOUCH_MOUSEID)).has_value());
+    auto x = ButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_BUTTON_LEFT);
+    x.button.which = SDL_TOUCH_MOUSEID;
+    EXPECT_FALSE(aspire::sdl::ToEvent(x).has_value());
 }
 
 TEST(ToEvent, fingerEventsFromMouseAreDropped)
 {
-    EXPECT_FALSE(aspire::sdl::ToEvent(FingerEvent(SDL_EVENT_FINGER_DOWN, 0, SDL_MOUSE_TOUCHID)).has_value());
+    auto x = FingerEvent(SDL_EVENT_FINGER_DOWN, 0);
+    x.tfinger.touchID = SDL_MOUSE_TOUCHID;
+    EXPECT_FALSE(aspire::sdl::ToEvent(x).has_value());
 }
 
 TEST(ToEvent, fingerWithoutWindowIsDropped)
@@ -260,44 +271,58 @@ TEST(ToEvent, timestampFollowsSdlEventTime)
     EXPECT_LE(clamped, std::chrono::steady_clock::now());
 }
 
-// A real window and renderer on SDL's dummy video driver, for the coordinate conversions.
-class ToEventWithWindow : public ::testing::Test
+namespace
 {
-protected:
-    // NOLINTNEXTLINE(readability-identifier-naming)
-    auto SetUp() -> void override
+    // A real window and renderer on SDL's dummy video driver, for the coordinate conversions.
+    class ToEventWithWindow : public ::testing::Test
     {
-        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
-        ASSERT_TRUE(SDL_Init(SDL_INIT_VIDEO)) << SDL_GetError();
-        ASSERT_TRUE(SDL_CreateWindowAndRenderer("test", WindowWidth, WindowHeight, 0, &window_, &renderer_)) << SDL_GetError();
-    }
+    protected:
+        // NOLINTNEXTLINE(readability-identifier-naming)
+        auto SetUp() -> void override
+        {
+            SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+            ASSERT_TRUE(SDL_Init(SDL_INIT_VIDEO)) << SDL_GetError();
+            ASSERT_TRUE(SDL_CreateWindowAndRenderer("test", WindowWidth, WindowHeight, 0, &window_, &renderer_)) << SDL_GetError();
+        }
 
-    // NOLINTNEXTLINE(readability-identifier-naming)
-    auto TearDown() -> void override
-    {
-        SDL_DestroyRenderer(renderer_);
-        SDL_DestroyWindow(window_);
-        SDL_Quit();
-    }
+        // NOLINTNEXTLINE(readability-identifier-naming)
+        auto TearDown() -> void override
+        {
+            SDL_DestroyRenderer(renderer_);
+            SDL_DestroyWindow(window_);
+            SDL_Quit();
+        }
 
-    SDL_Window* window_{};
-    SDL_Renderer* renderer_{};
-};
+        [[nodiscard]] auto windowId() const -> SDL_WindowID
+        {
+            return SDL_GetWindowID(window_);
+        }
+
+        [[nodiscard]] auto renderer() const -> SDL_Renderer*
+        {
+            return renderer_;
+        }
+
+    private:
+        SDL_Window* window_{};
+        SDL_Renderer* renderer_{};
+    };
+}
 
 TEST_F(ToEventWithWindow, fingerIsScaledToWindowCoordinates)
 {
-    const auto event = Mouse(FingerEvent(SDL_EVENT_FINGER_DOWN, SDL_GetWindowID(window_)));
+    const auto event = Mouse(FingerEvent(SDL_EVENT_FINGER_DOWN, windowId()));
     EXPECT_EQ(event.type, MouseType::ButtonPressed);
     EXPECT_EQ(event.button, Button::Left);
-    EXPECT_FLOAT_EQ(event.position.x, WindowWidth * 0.5F);
-    EXPECT_FLOAT_EQ(event.position.y, WindowHeight * 0.5F);
-    EXPECT_FLOAT_EQ(event.delta.x, WindowWidth * 0.1F);
-    EXPECT_FLOAT_EQ(event.delta.y, WindowHeight * 0.2F);
+    EXPECT_FLOAT_EQ(event.position.x, WindowWidth * FingerPosition);
+    EXPECT_FLOAT_EQ(event.position.y, WindowHeight * FingerPosition);
+    EXPECT_FLOAT_EQ(event.delta.x, WindowWidth * FingerDeltaX);
+    EXPECT_FLOAT_EQ(event.delta.y, WindowHeight * FingerDeltaY);
 }
 
 TEST_F(ToEventWithWindow, fingerUpAndMotionMapToReleasedAndMoved)
 {
-    const auto window = SDL_GetWindowID(window_);
+    const auto window = windowId();
     EXPECT_EQ(Mouse(FingerEvent(SDL_EVENT_FINGER_UP, window)).type, MouseType::ButtonReleased);
     EXPECT_EQ(Mouse(FingerEvent(SDL_EVENT_FINGER_MOTION, window)).type, MouseType::Moved);
 }
@@ -305,15 +330,16 @@ TEST_F(ToEventWithWindow, fingerUpAndMotionMapToReleasedAndMoved)
 TEST_F(ToEventWithWindow, rendererConvertsToRenderCoordinates)
 {
     // A logical size twice the window's makes render coordinates double the window coordinates.
-    ASSERT_TRUE(SDL_SetRenderLogicalPresentation(renderer_, WindowWidth * 2, WindowHeight * 2, SDL_LOGICAL_PRESENTATION_STRETCH));
+    ASSERT_TRUE(
+        SDL_SetRenderLogicalPresentation(renderer(), WindowWidth * RenderScale, WindowHeight * RenderScale, SDL_LOGICAL_PRESENTATION_STRETCH));
 
     auto click = ButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_BUTTON_LEFT);
-    click.button.windowID = SDL_GetWindowID(window_);
-    const auto mouse = Mouse(click, renderer_);
-    EXPECT_FLOAT_EQ(mouse.position.x, PositionX * 2.0F);
-    EXPECT_FLOAT_EQ(mouse.position.y, PositionY * 2.0F);
+    click.button.windowID = windowId();
+    const auto mouse = Mouse(click, renderer());
+    EXPECT_FLOAT_EQ(mouse.position.x, PositionX * RenderScale);
+    EXPECT_FLOAT_EQ(mouse.position.y, PositionY * RenderScale);
 
-    const auto finger = Mouse(FingerEvent(SDL_EVENT_FINGER_DOWN, SDL_GetWindowID(window_)), renderer_);
+    const auto finger = Mouse(FingerEvent(SDL_EVENT_FINGER_DOWN, windowId()), renderer());
     EXPECT_FLOAT_EQ(finger.position.x, static_cast<float>(WindowWidth));
     EXPECT_FLOAT_EQ(finger.position.y, static_cast<float>(WindowHeight));
 }
