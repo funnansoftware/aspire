@@ -81,7 +81,8 @@ Name the effect, every failure path, and anything that runs as a side effect (ho
 /// start when this object does.
 ///
 /// @param x The object to attach. Must not already have a parent; call `remove()` on it first to move it.
-/// @return `true` if `x` was attached; `false` if `x` is null or already has a parent.
+/// @return `true` if `x` was attached; `false` if `x` is null, already has a parent, or is this object or one
+/// of its ancestors.
 auto addChild(std::shared_ptr<Object> x) -> bool;
 ```
 

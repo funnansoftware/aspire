@@ -56,12 +56,19 @@ export namespace aspire::core
             return state_ == State::Started;
         }
 
-        // Returns true if added. Callers that built the child themselves may ignore the result.
+        /// @brief Attaches an object as the last child of this one.
+        ///
+        /// If this object is `State::Started`, the child and its subtree start immediately. Otherwise they start when
+        /// this object does. Callers that built the child themselves may ignore the result.
+        ///
+        /// @param x The object to attach. Must not already have a parent; call `remove()` on it first to move it.
+        /// @return `true` if `x` was attached; `false` if `x` is null, already has a parent, or is this object or one
+        /// of its ancestors.
         auto addChild(std::shared_ptr<Object> x) -> bool
         {
-            if (x == nullptr || x->parent_.lock() != nullptr)
+            if (x == nullptr || x->parent_.lock() != nullptr || isSelfOrAncestor(*x))
             {
-                // One parent only: remove() it first to move it.
+                // One parent only, and no cycles: remove() it first to move it.
                 return false;
             }
 
@@ -277,6 +284,26 @@ export namespace aspire::core
         }
 
     private:
+        // True if x is this object or one of its ancestors, so adding it as a child would make a cycle. The parent
+        // check in addChild() already rejects every ancestor but the root; this also catches the root and x == this.
+        [[nodiscard]] auto isSelfOrAncestor(const Object& x) const -> bool
+        {
+            if (&x == this)
+            {
+                return true;
+            }
+
+            for (auto ancestor = parent_.lock(); ancestor != nullptr; ancestor = ancestor->parent_.lock())
+            {
+                if (ancestor.get() == &x)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         std::string name_;
         std::vector<std::unique_ptr<Property>> properties_;
         std::vector<std::shared_ptr<Object>> children_;

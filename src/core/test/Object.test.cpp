@@ -354,6 +354,40 @@ TEST(Object, addChildRejectsDuplicateOnSameParent)
     EXPECT_EQ(std::size(parent->getChildren()), 1);
 }
 
+TEST(Object, addChildRejectsSelf)
+{
+    Log log;
+    const auto obj = Make(log, "a");
+    obj->startup();
+
+    EXPECT_FALSE(obj->addChild(obj));
+    EXPECT_TRUE(std::empty(obj->getChildren()));
+    EXPECT_EQ(obj->getParent(), nullptr);
+    EXPECT_EQ(log, (Log{"start a"}));
+}
+
+TEST(Object, addChildRejectsAncestor)
+{
+    Log log;
+    const auto root = Make(log, "root");
+    const auto a = Make(log, "a");
+    const auto a1 = Make(log, "a1");
+    root->addChild(a);
+    a->addChild(a1);
+    root->startup();
+
+    // The root has no parent, so only the cycle check stops this.
+    EXPECT_FALSE(a1->addChild(root));
+    EXPECT_TRUE(std::empty(a1->getChildren()));
+    EXPECT_EQ(root->getParent(), nullptr);
+
+    // A non-root ancestor is already rejected for having a parent.
+    EXPECT_FALSE(a1->addChild(a));
+    EXPECT_TRUE(std::empty(a1->getChildren()));
+
+    EXPECT_EQ(log, (Log{"start root", "start a", "start a1"}));
+}
+
 TEST(Object, addChildAcceptsObjectAfterRemove)
 {
     Log log;
