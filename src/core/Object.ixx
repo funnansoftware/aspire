@@ -2,8 +2,6 @@ export module aspire.core:object;
 
 import std;
 import :property;
-import :event;
-import :overloaded;
 
 export namespace aspire::core
 {
@@ -261,104 +259,12 @@ export namespace aspire::core
             }
         }
 
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto event(aspire::core::Event& x) -> void
-        {
-            const auto handled = std::visit(
-                aspire::core::Overloaded{
-                    [](std::unique_ptr<EventUser>& e) { return e->handled; },
-                    [](auto& e) { return e.handled; },
-                },
-                x);
-
-            if (handled)
-            {
-                return;
-            }
-
-            onEvent(x);
-
-            // Copy children to avoid modification during iteration.
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->event(x);
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto update(float x) -> void
-        {
-            onUpdate(x);
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->update(x);
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto updateFixed(float x) -> void
-        {
-            onUpdateFixed(x);
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->updateFixed(x);
-            }
-        }
-
-        // NOLINTNEXTLINE(misc-no-recursion)
-        auto render() const -> void
-        {
-            onRenderPre();
-            onRender();
-
-            auto children = children_;
-
-            for (auto& child : children)
-            {
-                child->render();
-            }
-
-            onRenderPost();
-        }
-
     protected:
         virtual auto onStartup() -> void
         {
         }
 
         virtual auto onShutdown() noexcept -> void
-        {
-        }
-
-        virtual auto onEvent(aspire::core::Event& /*unused*/) -> void
-        {
-        }
-
-        virtual auto onUpdate(float /*unused*/) -> void
-        {
-        }
-
-        virtual auto onUpdateFixed(float /*unused*/) -> void
-        {
-        }
-
-        virtual auto onRenderPre() const -> void
-        {
-        }
-
-        virtual auto onRender() const -> void
-        {
-        }
-
-        virtual auto onRenderPost() const -> void
         {
         }
 

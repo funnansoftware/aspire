@@ -16,8 +16,12 @@ export namespace aspire::core
     class Service : public Object
     {
     public:
-        /// @brief Receives a queued event that no earlier service has handled.
-        /// @param x The event. Set its `handled` flag to stop later services from receiving it.
+        /// @brief Receives a queued event.
+        ///
+        /// Every started service receives every event, in child order. Engine doesn't check whether an event is
+        /// handled; each service decides whether to act on an event that an earlier service marked handled.
+        ///
+        /// @param x The event. Its `handled` flag is visible to the services after this one.
         virtual auto event(Event& x) -> void = 0;
 
         /// @brief Advances the service by one frame of variable length.
