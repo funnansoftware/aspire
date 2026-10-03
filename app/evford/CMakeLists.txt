@@ -16,7 +16,7 @@ if(ANDROID)
 else()
     add_executable(evford main.cpp)
 endif()
-target_link_libraries(evford PRIVATE evford-world SDL3::SDL3)
+target_link_libraries(evford PRIVATE evford-world aspire-core SDL3::SDL3)
 
 if(EMSCRIPTEN)
     set_target_properties(evford PROPERTIES SUFFIX ".html")

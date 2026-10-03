@@ -4,7 +4,10 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include <cstdlib>
+
 import std;
+import aspire.core;
 
 #include "world.hpp"
 
@@ -29,26 +32,9 @@ namespace
     constexpr SDL_FPoint SummaryPosition{.x = 32.0F, .y = 56.0F};
     constexpr SDL_FPoint ControlsPosition{.x = 32.0F, .y = 496.0F};
     constexpr SDL_FPoint StatusPosition{.x = 864.0F, .y = 496.0F};
-    constexpr double FixedStepSeconds = 1.0 / 120.0;
 
-    struct App
-    {
-        SDL_Window* window = nullptr;
-        SDL_Renderer* renderer = nullptr;
-        evford::World world;
-        // Rendering consumes simulation columns into one reusable SDL buffer.
-        std::array<SDL_FRect, evford::ParticleCount> rectangles{};
-        Uint64 previousTicks = 0;
-        std::uint64_t frameLimit = 0;
-        std::uint64_t renderedFrames = 0;
-        double accumulator = 0.0;
-        bool paused = false;
-        // Lifecycle events may arrive from a platform thread. Only the iterate callback
-        // changes the simulation clock; lifecycle callbacks publish these two flags.
-        std::atomic<bool> background{false};
-        std::atomic<bool> discardElapsed{false};
-        bool minimized = false;
-    };
+    // 1/120 s isn't a whole number of nanoseconds; truncating it is fine.
+    constexpr auto FixedStep = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>{1.0 / 120.0});
 
     auto Log(SDL_LogPriority priority, std::string_view message) -> void
     {
@@ -73,74 +59,205 @@ namespace
         return SDL_RenderDebugText(renderer, position.x, position.y, text);
     }
 
-    auto ResetClock(App& app) -> void
+    // The particle field as an Engine service: input, fixed-step simulation, and drawing.
+    class Simulation : public aspire::core::Service
     {
-        app.previousTicks = SDL_GetTicksNS();
-        app.accumulator = 0.0;
-    }
-
-    auto ResetScene(App& app) -> void
-    {
-        evford::Reset(app.world);
-        ResetClock(app);
-    }
-
-    auto ActivatePointer(App& app, float x, float y) -> void
-    {
-        // Ignore touches in the letterbox. The reset control also works on touch screens.
-        if (x < 0.0F || x >= evford::CanvasWidth || y < 0.0F || y >= evford::CanvasHeight)
+    public:
+        // The renderer must outlive the service's last frame. The host shuts Engine down before destroying it.
+        explicit Simulation(SDL_Renderer* renderer) : renderer_{renderer}
         {
-            return;
-        }
-        const SDL_FPoint point{.x = x, .y = y};
-        if (SDL_PointInRectFloat(&point, &ResetButton))
-        {
-            ResetScene(app);
-        }
-        else
-        {
-            app.paused = !app.paused;
-            ResetClock(app);
-        }
-    }
-
-    auto Render(App& app) -> bool
-    {
-        auto* renderer = app.renderer;
-        if (!SetDrawColor(renderer, BackgroundColor) || !SDL_RenderClear(renderer))
-        {
-            return false;
         }
 
-        const SDL_FRect field{
-            .x = evford::FieldLeft, .y = evford::FieldTop, .w = evford::FieldRight - evford::FieldLeft, .h = evford::FieldBottom - evford::FieldTop};
-        if (!SetDrawColor(renderer, FieldColor) || !SDL_RenderFillRect(renderer, &field) || !SetDrawColor(renderer, BorderColor)
-            || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &ResetButton))
+        auto event(aspire::core::Event& x) -> void override
         {
-            return false;
-        }
-
-        for (auto&& [rectangle, x, y] : std::views::zip(app.rectangles, app.world.x, app.world.y))
-        {
-            rectangle = {.x = x, .y = y, .w = evford::ParticleSize, .h = evford::ParticleSize};
-        }
-        for (std::size_t batch = 0; batch < ColorCount; ++batch)
-        {
-            const auto rectangles = std::span{app.rectangles}.subspan(batch * ParticlesPerColor, ParticlesPerColor);
-            if (!SetDrawColor(renderer, Colors.at(batch))
-                || !SDL_RenderFillRects(renderer, std::data(rectangles), static_cast<int>(std::size(rectangles))))
+            if (const auto* key = std::get_if<aspire::core::EventKeyboard>(&x); key != nullptr)
             {
-                return false;
+                if (key->type == aspire::core::EventKeyboard::Type::KeyPressed)
+                {
+                    pressKey(key->key);
+                }
+            }
+            else if (const auto* mouse = std::get_if<aspire::core::EventMouse>(&x); mouse != nullptr)
+            {
+                if (mouse->type == aspire::core::EventMouse::Type::ButtonPressed && mouse->button == aspire::core::EventMouse::Button::Left)
+                {
+                    pressPointer(mouse->position);
+                }
             }
         }
 
-        // SDL's built-in debug font keeps this example entirely asset-free.
-        return SetDrawColor(renderer, TitleColor) && RenderText(renderer, TitlePosition, "EVFORD / PARTICLE FIELD")
-               && RenderText(renderer, ResetLabelPosition, "RESET") && SetDrawColor(renderer, TextColor)
-               && RenderText(renderer, SummaryPosition, "1024 particles. Four color batches. One shared world.")
-               && RenderText(renderer, ControlsPosition, "SPACE / CLICK / TAP  pause     R  reset     ESC  quit")
-               && SetDrawColor(renderer, StatusColor) && RenderText(renderer, StatusPosition, app.paused ? "PAUSED" : "RUNNING")
-               && SDL_RenderPresent(renderer);
+        auto update(float /*unused*/) -> void override
+        {
+        }
+
+        auto updateFixed(float x) -> void override
+        {
+            // Engine drains its fixed steps every frame, so steps skipped while paused don't build up.
+            if (!paused_)
+            {
+                evford::Advance(world_, x);
+            }
+        }
+
+        auto render() -> void override
+        {
+            if (!draw())
+            {
+                Log(SDL_LOG_PRIORITY_ERROR, std::format("Render frame: {}", SDL_GetError()));
+                quit(EXIT_FAILURE);
+            }
+        }
+
+    protected:
+        auto onStartup() -> void override
+        {
+            evford::Reset(world_);
+            paused_ = false;
+        }
+
+    private:
+        auto quit(int x) const -> void
+        {
+            if (const auto engine = getParent<aspire::core::Engine>(); engine != nullptr)
+            {
+                engine->quit(x);
+            }
+        }
+
+        auto pressKey(aspire::core::EventKeyboard::Key x) -> void
+        {
+            switch (x)
+            {
+                case aspire::core::EventKeyboard::Key::Space:
+                    paused_ = !paused_;
+                    break;
+                case aspire::core::EventKeyboard::Key::R:
+                    evford::Reset(world_);
+                    break;
+                case aspire::core::EventKeyboard::Key::Escape:
+                    quit(EXIT_SUCCESS);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        auto pressPointer(aspire::core::Vec2 x) -> void
+        {
+            // Ignore presses in the letterbox. The reset control also works on touch screens.
+            if (x.x < 0.0F || x.x >= evford::CanvasWidth || x.y < 0.0F || x.y >= evford::CanvasHeight)
+            {
+                return;
+            }
+
+            const SDL_FPoint point{.x = x.x, .y = x.y};
+
+            if (SDL_PointInRectFloat(&point, &ResetButton))
+            {
+                evford::Reset(world_);
+            }
+            else
+            {
+                paused_ = !paused_;
+            }
+        }
+
+        auto draw() -> bool
+        {
+            auto* renderer = renderer_;
+            if (!SetDrawColor(renderer, BackgroundColor) || !SDL_RenderClear(renderer))
+            {
+                return false;
+            }
+
+            const SDL_FRect field{.x = evford::FieldLeft,
+                                  .y = evford::FieldTop,
+                                  .w = evford::FieldRight - evford::FieldLeft,
+                                  .h = evford::FieldBottom - evford::FieldTop};
+            if (!SetDrawColor(renderer, FieldColor) || !SDL_RenderFillRect(renderer, &field) || !SetDrawColor(renderer, BorderColor)
+                || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &ResetButton))
+            {
+                return false;
+            }
+
+            // Rendering consumes simulation columns into one reusable SDL buffer.
+            for (auto&& [rectangle, x, y] : std::views::zip(rectangles_, world_.x, world_.y))
+            {
+                rectangle = {.x = x, .y = y, .w = evford::ParticleSize, .h = evford::ParticleSize};
+            }
+            for (std::size_t batch = 0; batch < ColorCount; ++batch)
+            {
+                const auto rectangles = std::span{rectangles_}.subspan(batch * ParticlesPerColor, ParticlesPerColor);
+                if (!SetDrawColor(renderer, Colors.at(batch))
+                    || !SDL_RenderFillRects(renderer, std::data(rectangles), static_cast<int>(std::size(rectangles))))
+                {
+                    return false;
+                }
+            }
+
+            // SDL's built-in debug font keeps this example entirely asset-free.
+            return SetDrawColor(renderer, TitleColor) && RenderText(renderer, TitlePosition, "EVFORD / PARTICLE FIELD")
+                   && RenderText(renderer, ResetLabelPosition, "RESET") && SetDrawColor(renderer, TextColor)
+                   && RenderText(renderer, SummaryPosition, "1024 particles. Four color batches. One shared world.")
+                   && RenderText(renderer, ControlsPosition, "SPACE / CLICK / TAP  pause     R  reset     ESC  quit")
+                   && SetDrawColor(renderer, StatusColor) && RenderText(renderer, StatusPosition, paused_ ? "PAUSED" : "RUNNING")
+                   && SDL_RenderPresent(renderer);
+        }
+
+        SDL_Renderer* renderer_;
+        evford::World world_;
+        std::array<SDL_FRect, evford::ParticleCount> rectangles_{};
+        bool paused_{false};
+    };
+
+    // The SDL host: owns the window, renderer and Engine, and drives Engine from SDL's callbacks.
+    struct App
+    {
+        SDL_Window* window = nullptr;
+        SDL_Renderer* renderer = nullptr;
+        std::shared_ptr<aspire::core::Engine> engine;
+        Uint64 previousTicks = 0;
+        std::uint64_t frameLimit = 0;
+        std::uint64_t renderedFrames = 0;
+        // Lifecycle events may arrive from a platform thread. Only the iterate callback
+        // reads the clock; lifecycle callbacks publish these two flags.
+        std::atomic<bool> background{false};
+        std::atomic<bool> discardElapsed{false};
+        bool minimized = false;
+    };
+
+    // Only the keys evford uses. Full SDL event translation belongs to the future aspire.sdl.
+    auto ToKey(SDL_Keycode x) -> std::optional<aspire::core::EventKeyboard::Key>
+    {
+        switch (x)
+        {
+            case SDLK_SPACE:
+                return aspire::core::EventKeyboard::Key::Space;
+            case SDLK_R:
+                return aspire::core::EventKeyboard::Key::R;
+            case SDLK_ESCAPE:
+                return aspire::core::EventKeyboard::Key::Escape;
+            default:
+                return std::nullopt;
+        }
+    }
+
+    auto KeyPressed(aspire::core::EventKeyboard::Key x) -> aspire::core::EventKeyboard
+    {
+        aspire::core::EventKeyboard event;
+        event.type = aspire::core::EventKeyboard::Type::KeyPressed;
+        event.key = x;
+        return event;
+    }
+
+    // Mouse clicks and touches both arrive as a left-button press, in render coordinates.
+    auto PointerPressed(float x, float y) -> aspire::core::EventMouse
+    {
+        aspire::core::EventMouse event;
+        event.type = aspire::core::EventMouse::Type::ButtonPressed;
+        event.button = aspire::core::EventMouse::Button::Left;
+        event.position = {.x = x, .y = y};
+        return event;
     }
 }
 
@@ -202,7 +319,12 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     {
         Log(SDL_LOG_PRIORITY_INFO, std::format("Vsync unavailable: {}", SDL_GetError()));
     }
-    ResetScene(app);
+
+    app.engine = std::make_shared<aspire::core::Engine>();
+    app.engine->setIntervalFixed(FixedStep);
+    app.engine->addChild(std::make_shared<Simulation>(app.renderer));
+    app.engine->startup();
+    app.previousTicks = SDL_GetTicksNS();
     return SDL_APP_CONTINUE;
 }
 
@@ -214,22 +336,14 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
     {
         case SDL_EVENT_QUIT:
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+            app.engine->quit();
             return SDL_APP_SUCCESS;
         case SDL_EVENT_KEY_DOWN:
             if (!event->key.repeat)
             {
-                if (event->key.key == SDLK_ESCAPE)
+                if (const auto key = ToKey(event->key.key); key.has_value())
                 {
-                    return SDL_APP_SUCCESS;
-                }
-                if (event->key.key == SDLK_SPACE)
-                {
-                    app.paused = !app.paused;
-                    ResetClock(app);
-                }
-                else if (event->key.key == SDLK_R)
-                {
-                    ResetScene(app);
+                    app.engine->enqueueEvent(KeyPressed(*key));
                 }
             }
             break;
@@ -241,7 +355,7 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
                 {
                     return Fail("Convert mouse coordinates");
                 }
-                ActivatePointer(app, event->button.x, event->button.y);
+                app.engine->enqueueEvent(PointerPressed(event->button.x, event->button.y));
             }
             break;
         case SDL_EVENT_FINGER_DOWN:
@@ -253,7 +367,7 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
             {
                 return Fail("Convert touch coordinates");
             }
-            ActivatePointer(app, event->tfinger.x, event->tfinger.y);
+            app.engine->enqueueEvent(PointerPressed(event->tfinger.x, event->tfinger.y));
             break;
         case SDL_EVENT_WILL_ENTER_BACKGROUND:
         case SDL_EVENT_DID_ENTER_BACKGROUND:
@@ -266,11 +380,10 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
             break;
         case SDL_EVENT_WINDOW_MINIMIZED:
             app.minimized = true;
-            ResetClock(app);
             break;
         case SDL_EVENT_WINDOW_RESTORED:
             app.minimized = false;
-            ResetClock(app);
+            app.discardElapsed.store(true);
             break;
         default:
             break;
@@ -283,31 +396,26 @@ auto SDL_AppIterate(void* appstate) -> SDL_AppResult
 {
     auto& app = *static_cast<App*>(appstate);
     const auto now = SDL_GetTicksNS();
-    auto elapsed = static_cast<double>(now - app.previousTicks) / static_cast<double>(SDL_NS_PER_SECOND);
+    auto elapsed = std::chrono::nanoseconds{static_cast<std::int64_t>(now - app.previousTicks)};
     app.previousTicks = now;
+
+    // The first frame after the app resumes advances nothing.
     if (app.discardElapsed.exchange(false))
     {
-        elapsed = 0.0;
-        app.accumulator = 0.0;
+        elapsed = std::chrono::nanoseconds::zero();
     }
     if (app.background.load() || app.minimized)
     {
-        app.accumulator = 0.0;
         return SDL_APP_CONTINUE;
     }
-    if (!app.paused)
+
+    app.engine->iterate(elapsed);
+
+    if (!app.engine->running())
     {
-        app.accumulator += std::min(elapsed, static_cast<double>(evford::MaxFrameSeconds));
-        while (app.accumulator >= FixedStepSeconds)
-        {
-            evford::Advance(app.world, static_cast<float>(FixedStepSeconds));
-            app.accumulator -= FixedStepSeconds;
-        }
+        return app.engine->exitCode() == EXIT_SUCCESS ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
-    if (!Render(app))
-    {
-        return Fail("Render frame");
-    }
+
     ++app.renderedFrames;
     return app.frameLimit != 0 && app.renderedFrames >= app.frameLimit ? SDL_APP_SUCCESS : SDL_APP_CONTINUE;
 }
@@ -318,6 +426,12 @@ auto SDL_AppQuit(void* appstate, SDL_AppResult /*result*/) -> void
     const std::unique_ptr<App> app(static_cast<App*>(appstate));
     if (app != nullptr)
     {
+        // Shut the services down while the renderer they draw with is still valid.
+        if (app->engine != nullptr)
+        {
+            app->engine->shutdown();
+            app->engine.reset();
+        }
         SDL_DestroyRenderer(app->renderer);
         SDL_DestroyWindow(app->window);
     }
