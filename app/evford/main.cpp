@@ -8,6 +8,7 @@
 
 import std;
 import aspire.core;
+import aspire.sdl;
 
 #include "world.hpp"
 
@@ -224,40 +225,6 @@ namespace
         std::atomic<bool> discardElapsed{false};
         bool minimized = false;
     };
-
-    // Only the keys evford uses. Full SDL event translation belongs to the future aspire.sdl.
-    auto ToKey(SDL_Keycode x) -> std::optional<aspire::core::EventKeyboard::Key>
-    {
-        switch (x)
-        {
-            case SDLK_SPACE:
-                return aspire::core::EventKeyboard::Key::Space;
-            case SDLK_R:
-                return aspire::core::EventKeyboard::Key::R;
-            case SDLK_ESCAPE:
-                return aspire::core::EventKeyboard::Key::Escape;
-            default:
-                return std::nullopt;
-        }
-    }
-
-    auto KeyPressed(aspire::core::EventKeyboard::Key x) -> aspire::core::EventKeyboard
-    {
-        aspire::core::EventKeyboard event;
-        event.type = aspire::core::EventKeyboard::Type::KeyPressed;
-        event.key = x;
-        return event;
-    }
-
-    // Mouse clicks and touches both arrive as a left-button press, in render coordinates.
-    auto PointerPressed(float x, float y) -> aspire::core::EventMouse
-    {
-        aspire::core::EventMouse event;
-        event.type = aspire::core::EventMouse::Type::ButtonPressed;
-        event.button = aspire::core::EventMouse::Button::Left;
-        event.position = {.x = x, .y = y};
-        return event;
-    }
 }
 
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -337,37 +304,6 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
             app.engine->quit();
             return SDL_APP_SUCCESS;
-        case SDL_EVENT_KEY_DOWN:
-            if (!event->key.repeat)
-            {
-                if (const auto key = ToKey(event->key.key); key.has_value())
-                {
-                    app.engine->enqueueEvent(KeyPressed(*key));
-                }
-            }
-            break;
-        case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            // Touch produces its own event; ignore its synthetic mouse counterpart.
-            if (event->button.button == SDL_BUTTON_LEFT && event->button.which != SDL_TOUCH_MOUSEID)
-            {
-                if (!SDL_ConvertEventToRenderCoordinates(app.renderer, event))
-                {
-                    return Fail("Convert mouse coordinates");
-                }
-                app.engine->enqueueEvent(PointerPressed(event->button.x, event->button.y));
-            }
-            break;
-        case SDL_EVENT_FINGER_DOWN:
-            if (event->tfinger.touchID == SDL_MOUSE_TOUCHID)
-            {
-                break;
-            }
-            if (!SDL_ConvertEventToRenderCoordinates(app.renderer, event))
-            {
-                return Fail("Convert touch coordinates");
-            }
-            app.engine->enqueueEvent(PointerPressed(event->tfinger.x, event->tfinger.y));
-            break;
         case SDL_EVENT_WILL_ENTER_BACKGROUND:
         case SDL_EVENT_DID_ENTER_BACKGROUND:
             app.background.store(true);
@@ -385,6 +321,11 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
             app.discardElapsed.store(true);
             break;
         default:
+            // Input arrives on the main thread: translate it in render coordinates and queue it for the services.
+            if (auto translated = aspire::sdl::ToEvent(*event, app.renderer); translated.has_value())
+            {
+                app.engine->enqueueEvent(std::move(*translated));
+            }
             break;
     }
     return SDL_APP_CONTINUE;
