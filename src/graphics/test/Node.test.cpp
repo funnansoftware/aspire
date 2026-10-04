@@ -365,6 +365,7 @@ TEST(Node, loadsFromJson)
         "scale": [3, 4],
         "layer": 5,
         "visible": false,
+        "enabled": false,
         "clip": [0, 0, 8, 8]
     })");
 
@@ -374,6 +375,7 @@ TEST(Node, loadsFromJson)
     EXPECT_FLOAT_EQ(node->getScale().x, 3.0F);
     EXPECT_EQ(node->getLayer(), 5);
     EXPECT_FALSE(node->isVisible());
+    EXPECT_FALSE(node->getEnabled());
     const auto clip = node->getClip();
     ASSERT_TRUE(clip.has_value());
     EXPECT_FLOAT_EQ(clip.value_or(Rect{}).w, 8.0F);
@@ -398,4 +400,5 @@ TEST(Node, layerAndClipDefaultToUnset)
     EXPECT_FALSE(node.getLayer().has_value());
     EXPECT_FALSE(node.getClip().has_value());
     EXPECT_TRUE(node.isVisible());
+    EXPECT_TRUE(node.getEnabled());
 }
