@@ -19,6 +19,9 @@ export namespace aspire::graphics
         std::uint8_t a{Opaque};
     };
 
+    /// @brief Opaque black, the default clear color.
+    constexpr Color Black{.r = 0, .g = 0, .b = 0, .a = Color::Opaque};
+
     /// @brief Opaque white, the default tint and text color.
     constexpr Color White{.r = Color::Opaque, .g = Color::Opaque, .b = Color::Opaque, .a = Color::Opaque};
 

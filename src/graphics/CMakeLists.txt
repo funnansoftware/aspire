@@ -14,7 +14,9 @@ target_sources(${PROJECT_NAME} PUBLIC
         Module.ixx
         Node.ixx
         Rect.ixx
+        RenderBackend.ixx
         Renderer.ixx
+        RenderService.ixx
         Transform.ixx
 )
 

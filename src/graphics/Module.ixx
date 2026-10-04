@@ -9,5 +9,7 @@ export import :drawstate;
 export import :drawtext;
 export import :node;
 export import :rect;
+export import :renderbackend;
 export import :renderer;
+export import :renderservice;
 export import :transform;

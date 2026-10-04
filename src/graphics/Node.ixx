@@ -13,7 +13,9 @@ export namespace aspire::graphics
     /// @brief A node in a 2D scene: positioned and scaled relative to its parent, and drawn by `Collect`.
     ///
     /// Registers the properties `position` (`[x, y]`), `scale` (`[x, y]`), `layer` (a number, or null to inherit),
-    /// `visible`, and `clip` (`[x, y, w, h]` in local coordinates, or null for none).
+    /// `visible`, `enabled`, and `clip` (`[x, y, w, h]` in local coordinates, or null for none).
+    ///
+    /// `RenderService` calls `update()` and `updateFixed()` on every started, enabled node each frame.
     class Node : public aspire::core::Object
     {
     public:
@@ -23,6 +25,7 @@ export namespace aspire::graphics
             registerProperty("scale", scale_);
             registerProperty("layer", layer_);
             registerProperty("visible", visible_);
+            registerProperty("enabled", enabled_);
             registerProperty("clip", clip_);
         }
 
@@ -82,6 +85,24 @@ export namespace aspire::graphics
             return visible_;
         }
 
+        /// @brief Enables or disables this node and its subtree.
+        ///
+        /// A disabled node, and everything below it, gets no `update()` or `updateFixed()` calls. It still draws:
+        /// hide it with `setVisible(false)` as well to make it disappear.
+        ///
+        /// @param x `false` to disable.
+        auto setEnabled(bool x) -> void
+        {
+            enabled_ = x;
+        }
+
+        /// @brief Reports whether this node and its subtree are enabled.
+        /// @return `false` if disabled. Nodes are enabled by default.
+        [[nodiscard]] auto getEnabled() const -> bool
+        {
+            return enabled_;
+        }
+
         /// @brief Clips this node and its subtree to a rectangle. A child's clip can only narrow it.
         /// @param x The rectangle in local coordinates, or `std::nullopt` for no clip of its own.
         auto setClip(std::optional<Rect> x) -> void
@@ -113,12 +134,25 @@ export namespace aspire::graphics
         {
         }
 
+        /// @brief Advances this node by one frame of variable length. Called by `RenderService`, parents first.
+        /// @param x Seconds since the previous frame.
+        virtual auto update([[maybe_unused]] float x) -> void
+        {
+        }
+
+        /// @brief Advances this node by one fixed step. Called by `RenderService`, parents first.
+        /// @param x Seconds in one fixed step.
+        virtual auto updateFixed([[maybe_unused]] float x) -> void
+        {
+        }
+
     private:
         aspire::core::Vec2 position_{};
         aspire::core::Vec2 scale_{.x = 1.0F, .y = 1.0F};
         std::optional<int> layer_;
         std::optional<Rect> clip_;
         bool visible_{true};
+        bool enabled_{true};
     };
 
     /// @brief Draws a tree of nodes into a draw list: appends each started, visible node's items, in tree order.
