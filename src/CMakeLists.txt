@@ -1,4 +1,5 @@
 add_subdirectory(core)
+add_subdirectory(graphics)
 add_subdirectory(parser)
 add_subdirectory(sdl)
 add_subdirectory(string)
@@ -15,6 +16,7 @@ target_sources(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME} PUBLIC
     aspire-parser
     aspire-core
+    aspire-graphics
     aspire-sdl
     aspire-string
 )
