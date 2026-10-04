@@ -373,7 +373,8 @@ TEST(Node, loadsFromJson)
         "layer": 5,
         "visible": false,
         "enabled": false,
-        "clip": [0, 0, 8, 8]
+        "clip": [0, 0, 8, 8],
+        "bounds": [1, 2, 3, 4]
     })");
 
     const auto node = std::dynamic_pointer_cast<Node>(aspire::parser::ReadJson(factory, json));
@@ -386,6 +387,7 @@ TEST(Node, loadsFromJson)
     const auto clip = node->getClip();
     ASSERT_TRUE(clip.has_value());
     EXPECT_FLOAT_EQ(clip.value_or(Rect{}).w, 8.0F);
+    EXPECT_FLOAT_EQ(node->getBounds().value_or(Rect{}).h, 4.0F);
 }
 
 TEST(Node, nullLayerAndClipInJsonMeanUnset)
@@ -399,6 +401,60 @@ TEST(Node, nullLayerAndClipInJsonMeanUnset)
     ASSERT_NE(node, nullptr);
     EXPECT_FALSE(node->getLayer().has_value());
     EXPECT_FALSE(node->getClip().has_value());
+}
+
+TEST(ChildState, composesInheritsAndNarrows)
+{
+    // The parent clips to twice Box; the node at Overhang (screen offset Offset + Overhang * Double) clips to Box.
+    constexpr Rect parentClip{.x = 0.0F, .y = 0.0F, .w = Box.w * Double.x, .h = Box.h * Double.y};
+    const aspire::graphics::DrawState parent{.transform = {.offset = Offset, .scale = Double}, .clip = 1, .clipRect = parentClip, .layer = UiLayer};
+
+    Node node;
+    node.setPosition(Overhang);
+    const aspire::core::Vec2 origin{.x = Offset.x + (Overhang.x * Double.x), .y = Offset.y + (Overhang.y * Double.y)};
+
+    // Without a layer or clip of its own, the node inherits both.
+    auto state = aspire::graphics::ChildState(parent, node);
+    EXPECT_FLOAT_EQ(state.transform.offset.x, origin.x);
+    EXPECT_FLOAT_EQ(state.transform.scale.x, Double.x);
+    EXPECT_EQ(state.layer, UiLayer);
+    EXPECT_EQ(state.clip, 1);
+    ExpectRect(state.clipRect.value_or(Rect{}), parentClip);
+
+    // Its own clip narrows the parent's; the clip index is still the parent's, since only Collect allocates them.
+    node.setLayer(0);
+    node.setClip(Box);
+    state = aspire::graphics::ChildState(parent, node);
+    EXPECT_EQ(state.layer, 0);
+    EXPECT_EQ(state.clip, 1);
+    ExpectRect(state.clipRect.value_or(Rect{}), {.x = origin.x, .y = origin.y, .w = parentClip.w - origin.x, .h = parentClip.h - origin.y});
+}
+
+TEST(Node, hitTestUsesBounds)
+{
+    Node node;
+    EXPECT_FALSE(node.hitTest({}));
+
+    node.setBounds(Box);
+    EXPECT_TRUE(node.hitTest({.x = Box.w / 2, .y = Box.h / 2}));
+    EXPECT_FALSE(node.hitTest({.x = Box.w, .y = Box.h}));
+}
+
+TEST(Node, hitTestCanBeOverridden)
+{
+    // A node that's hit everywhere left of x = 0, with no bounds at all.
+    class LeftHalf : public Node
+    {
+    public:
+        [[nodiscard]] auto hitTest(aspire::core::Vec2 x) const -> bool override
+        {
+            return x.x < 0.0F;
+        }
+    };
+
+    const LeftHalf node;
+    EXPECT_TRUE(node.hitTest({.x = -1.0F, .y = 0.0F}));
+    EXPECT_FALSE(node.hitTest({.x = 1.0F, .y = 0.0F}));
 }
 
 TEST(Node, layerAndClipDefaultToUnset)
