@@ -42,10 +42,11 @@ jobs:
             cmake --preset wasm32-emscripten-emcc-release
             cmake --build --preset wasm32-emscripten-emcc-release --parallel
             cmake --install build/wasm32-emscripten-emcc-release
-            out=build/wasm32-emscripten-emcc-release/installed/share/evford
-            for file in evford.html evford.js evford.wasm; do
-              if [ ! -s "$out/$file" ]; then
-                echo "::error::Missing or empty web asset: $out/$file"
+            installed=build/wasm32-emscripten-emcc-release/installed/share
+            for file in evford/evford.html evford/evford.js evford/evford.wasm \
+                        srd-lite/srd-lite.html srd-lite/srd-lite.js srd-lite/srd-lite.wasm srd-lite/srd-lite.data; do
+              if [ ! -s "$installed/$file" ]; then
+                echo "::error::Missing or empty web asset: $installed/$file"
                 exit 1
               fi
             done
@@ -54,4 +55,10 @@ jobs:
         with:
           name: aspire-web
           path: build/wasm32-emscripten-emcc-release/installed/share/evford
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aspire-web-srd-lite
+          path: build/wasm32-emscripten-emcc-release/installed/share/srd-lite
           if-no-files-found: error
