@@ -97,7 +97,6 @@ src/graphics/
 
 Partitions import only what they use, so a type's file imports the partitions of the types it mentions. When two types seem to need each other, find the one-way order rather than forward-declaring a type in one partition and defining it in another: move what causes the cycle (a member, a `friend`, a back-pointer) until every import points the same way. Declarations split across partitions are legal, but are where GCC's module support is least reliable.
 
-`src/core/Event.ixx` was written before this rule and still holds five independent event structs. Split it when it next changes substantially, and don't add new types to it.
 
 ## Consuming Modules (PS.6, PS.7)
 
