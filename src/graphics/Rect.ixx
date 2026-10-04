@@ -5,6 +5,7 @@ module;
 export module aspire.graphics:rect;
 
 import std;
+import aspire.core;
 
 export namespace aspire::graphics
 {
@@ -28,6 +29,16 @@ export namespace aspire::graphics
         const auto right = std::min(a.x + a.w, b.x + b.w);
         const auto bottom = std::min(a.y + a.h, b.y + b.h);
         return Rect{.x = left, .y = top, .w = std::max(0.0F, right - left), .h = std::max(0.0F, bottom - top)};
+    }
+
+    /// @brief Reports whether a point is inside a rectangle. The left and top edges are inside; the right and
+    /// bottom edges aren't, so neighbouring rectangles never both contain a point.
+    /// @param a The rectangle.
+    /// @param x The point.
+    /// @return `true` if `x` is inside `a`.
+    [[nodiscard]] constexpr auto Contains(Rect a, aspire::core::Vec2 x) -> bool
+    {
+        return x.x >= a.x && x.x < a.x + a.w && x.y >= a.y && x.y < a.y + a.h;
     }
 
     /// @brief Writes a Rect as a JSON array, `[x, y, w, h]`.

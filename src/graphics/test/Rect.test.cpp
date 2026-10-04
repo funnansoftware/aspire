@@ -35,6 +35,15 @@ TEST(Intersect, disjointRectsGiveAnEmptyRect)
     EXPECT_FLOAT_EQ(overlap.h, 0.0F);
 }
 
+TEST(Contains, includesTopLeftEdgesButNotBottomRight)
+{
+    EXPECT_TRUE(aspire::graphics::Contains(A, {.x = A.x, .y = A.y}));
+    EXPECT_TRUE(aspire::graphics::Contains(A, {.x = A.w / 2, .y = A.h / 2}));
+    EXPECT_FALSE(aspire::graphics::Contains(A, {.x = A.w, .y = A.h / 2}));
+    EXPECT_FALSE(aspire::graphics::Contains(A, {.x = A.w / 2, .y = A.h}));
+    EXPECT_FALSE(aspire::graphics::Contains(A, {.x = -1.0F, .y = A.h / 2}));
+}
+
 TEST(Rect, roundTripsThroughJson)
 {
     const nlohmann::json json = B;

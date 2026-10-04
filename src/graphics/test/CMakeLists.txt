@@ -4,6 +4,7 @@ add_executable(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PRIVATE
     Color.test.cpp
+    Input.test.cpp
     Node.test.cpp
     Rect.test.cpp
     RenderService.test.cpp

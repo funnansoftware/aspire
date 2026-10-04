@@ -13,9 +13,12 @@ export namespace aspire::graphics
     /// @brief A node in a 2D scene: positioned and scaled relative to its parent, and drawn by `Collect`.
     ///
     /// Registers the properties `position` (`[x, y]`), `scale` (`[x, y]`), `layer` (a number, or null to inherit),
-    /// `visible`, `enabled`, and `clip` (`[x, y, w, h]` in local coordinates, or null for none).
+    /// `visible`, `enabled`, `clip` (`[x, y, w, h]` in local coordinates, or null for none), and `bounds` (the same,
+    /// for the area that receives presses).
     ///
-    /// `RenderService` calls `update()` and `updateFixed()` on every started, enabled node each frame.
+    /// `RenderService` calls `update()` and `updateFixed()` on every started, enabled node each frame, and routes
+    /// mouse and keyboard input to every started, enabled, visible node through `eventMouse()` and
+    /// `eventKeyboard()`.
     class Node : public aspire::core::Object
     {
     public:
@@ -27,6 +30,7 @@ export namespace aspire::graphics
             registerProperty("visible", visible_);
             registerProperty("enabled", enabled_);
             registerProperty("clip", clip_);
+            registerProperty("bounds", bounds_);
         }
 
         /// @brief Sets where this node sits in its parent's coordinates.
@@ -117,6 +121,32 @@ export namespace aspire::graphics
             return clip_;
         }
 
+        /// @brief Sets the area that receives presses and scrolling. Children aren't included.
+        /// @param x The area in local coordinates, or `std::nullopt` (the default) for none.
+        auto setBounds(std::optional<Rect> x) -> void
+        {
+            bounds_ = x;
+        }
+
+        /// @brief Reports the area that receives presses and scrolling.
+        /// @return The area in local coordinates, or `std::nullopt` for none.
+        [[nodiscard]] auto getBounds() const -> std::optional<Rect>
+        {
+            return bounds_;
+        }
+
+        /// @brief Reports whether a point is on this node, for routing presses and scrolling.
+        ///
+        /// Override it for a hit area that isn't a rectangle. By default, a point hits if it's inside `getBounds()`,
+        /// so a node without bounds is never hit.
+        ///
+        /// @param x The point, in local coordinates.
+        /// @return `true` if the point is on this node.
+        [[nodiscard]] virtual auto hitTest(aspire::core::Vec2 x) const -> bool
+        {
+            return bounds_.has_value() && Contains(*bounds_, x);
+        }
+
         /// @brief Reports the transform from this node's coordinates to its parent's.
         /// @return The node's position and scale as a transform.
         [[nodiscard]] auto localTransform() const -> Transform
@@ -146,14 +176,58 @@ export namespace aspire::graphics
         {
         }
 
+        /// @brief Receives mouse and touch input. Called by `RenderService`, front-most node first.
+        ///
+        /// Presses, releases and scrolling arrive only when they hit this node. Movement arrives whether or not the
+        /// pointer is over it. Set `handled` to stop the event reaching the nodes behind this one.
+        ///
+        /// @param x The event, with `position` and `delta` in this node's local coordinates.
+        virtual auto eventMouse([[maybe_unused]] aspire::core::EventMouse& x) -> void
+        {
+        }
+
+        /// @brief Receives keyboard input. Called by `RenderService`: the focused node first, then the rest in tree
+        /// order. Set `handled` to stop the event reaching the nodes after this one.
+        /// @param x The event.
+        virtual auto eventKeyboard([[maybe_unused]] aspire::core::EventKeyboard& x) -> void
+        {
+        }
+
     private:
         aspire::core::Vec2 position_{};
         aspire::core::Vec2 scale_{.x = 1.0F, .y = 1.0F};
         std::optional<int> layer_;
         std::optional<Rect> clip_;
+        std::optional<Rect> bounds_;
         bool visible_{true};
         bool enabled_{true};
     };
+
+    /// @brief Works out where a node draws, from where its parent draws.
+    ///
+    /// Composes the transforms, inherits the parent's layer unless the node sets its own, and narrows the parent's
+    /// clip rectangle to the node's own clip, if it has one. The clip index is left as the parent's: only `Collect`
+    /// allocates clip indices.
+    ///
+    /// @param parent Where the parent draws. Default-constructed for a root.
+    /// @param x The node.
+    /// @return Where the node, and the children it passes its state to, draw.
+    [[nodiscard]] auto ChildState(const DrawState& parent, const Node& x) -> DrawState
+    {
+        auto state = DrawState{.transform = parent.transform.then(x.localTransform()),
+                               .clip = parent.clip,
+                               .clipRect = parent.clipRect,
+                               .layer = x.getLayer().value_or(parent.layer)};
+
+        if (const auto clip = x.getClip(); clip.has_value())
+        {
+            // Children can only narrow a clip, so intersect with the parent's.
+            const auto screen = state.transform.apply(*clip);
+            state.clipRect = parent.clipRect.has_value() ? Intersect(screen, *parent.clipRect) : screen;
+        }
+
+        return state;
+    }
 
     /// @brief Draws a tree of nodes into a draw list: appends each started, visible node's items, in tree order.
     ///
@@ -181,23 +255,12 @@ export namespace aspire::graphics
                 continue;
             }
 
-            auto state = DrawState{.transform = parent.transform.then(node->localTransform()),
-                                   .clip = parent.clip,
-                                   .clipRect = parent.clipRect,
-                                   .layer = node->getLayer().value_or(parent.layer)};
+            auto state = ChildState(parent, *node);
 
-            if (const auto clip = node->getClip(); clip.has_value())
+            // A node with its own clip gets a new clip index, which its children inherit.
+            if (node->getClip().has_value() && state.clipRect.has_value())
             {
-                // Children can only narrow a clip, so intersect with the parent's.
-                auto screen = state.transform.apply(*clip);
-
-                if (parent.clipRect.has_value())
-                {
-                    screen = Intersect(screen, *parent.clipRect);
-                }
-
-                state.clip = list.addClip(screen);
-                state.clipRect = screen;
+                state.clip = list.addClip(*state.clipRect);
             }
 
             Renderer renderer{list, state};
