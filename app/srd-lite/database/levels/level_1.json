@@ -1,10 +1,9 @@
 {
-  "type": "TileMap",
-  "source": "D:/dev/aspire/assets/kenney/1-bit-pack/Tilesheet/colored-transparent.png",
+  "type": "Level",
+  "source": "assets/kenney/1-bit-pack/Tilesheet/colored-transparent.png",
   "spacing": 1,
   "tileWidth": 16,
   "tileHeight": 16,
-  "tiles": 1078,
   "columns": 49,
   "width": 10,
   "height": 10,

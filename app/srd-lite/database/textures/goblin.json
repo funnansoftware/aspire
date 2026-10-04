@@ -1,5 +1,5 @@
 {
-    "type": "Texture",
-    "source": "D:/dev/aspire/assets/kenney/1-bit-pack/Tilesheet/colored-transparent.png",
-    "rect": [ 2106, 34, 16, 16 ]
+    "type": "Sprite",
+    "source": "assets/kenney/1-bit-pack/Tilesheet/colored-transparent.png",
+    "region": [ 2106, 34, 16, 16 ]
 }

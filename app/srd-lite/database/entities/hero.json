@@ -2,6 +2,6 @@
     "type": "Data",
     "name": "hero",
     "files": [
-        "D:/dev/aspire/app/srd-lite/database/textures/hero.json"
+        "../textures/hero.json"
     ]
 }
