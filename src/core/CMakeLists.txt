@@ -8,6 +8,11 @@ target_sources(${PROJECT_NAME} PUBLIC
         Database.ixx
         Engine.ixx
         Event.ixx
+        EventJoystick.ixx
+        EventKeyboard.ixx
+        EventMouse.ixx
+        EventUser.ixx
+        EventWindow.ixx
         Module.ixx
         Object.ixx
         ObjectFactory.ixx
