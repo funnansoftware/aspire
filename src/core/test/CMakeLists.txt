@@ -7,6 +7,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     Object.test.cpp
     ObjectFactory.test.cpp
     Property.test.cpp
+    Vec2.test.cpp
 )
 
 enable_testing()
