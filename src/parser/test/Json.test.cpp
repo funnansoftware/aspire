@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <nameof.hpp>
+#include <nlohmann/json.hpp>
 
 import std;
 import aspire.parser;
@@ -53,6 +54,14 @@ TEST(ReadFile, basic)
     // when <ostream> is included alongside `import std;` (operator<< for std::quoted is not found).
     EXPECT_EQ(jsonObj->texture.generic_string(), "path/to/texture.png");
     EXPECT_EQ(jsonObj->rect, (std::array<int, 4>{0, 0, 100, 100}));
+}
+
+TEST(ReadJson, unregisteredTypeGivesNull)
+{
+    const aspire::core::ObjectFactory factory;
+    auto json = nlohmann::json::parse(R"({ "type": "Unregistered", "name": "x" })");
+
+    EXPECT_EQ(aspire::parser::ReadJson(factory, json), nullptr);
 }
 
 TEST(ReadFile, readOnlyPropertyIsSkipped)

@@ -22,6 +22,12 @@ export namespace aspire::parser
 
         auto object = factory.create(typeIt->get<std::string>());
 
+        if (object == nullptr)
+        {
+            std::println("Type not registered: {}", typeIt->get<std::string>());
+            return nullptr;
+        }
+
         json.erase(typeIt);
 
         auto nameIt = json.find("name");
