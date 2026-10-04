@@ -62,7 +62,7 @@ namespace
     class ParticleField : public aspire::graphics::Node
     {
     public:
-        auto reset() -> void
+        auto reseed() -> void
         {
             evford::Reset(world_);
         }
@@ -95,7 +95,7 @@ namespace
     protected:
         auto onStartup() -> void override
         {
-            reset();
+            reseed();
             setEnabled(true);
         }
 
@@ -163,7 +163,7 @@ namespace
                     togglePause();
                     break;
                 case aspire::core::EventKeyboard::Key::R:
-                    field_->reset();
+                    field_->reseed();
                     break;
                 case aspire::core::EventKeyboard::Key::Escape:
                     quit();
@@ -186,7 +186,7 @@ namespace
 
             if (inReset)
             {
-                field_->reset();
+                field_->reseed();
             }
             else
             {
