@@ -34,7 +34,8 @@ namespace
     constexpr Color StatusColor{.r = 107, .g = 222, .b = 195, .a = 255};
     constexpr Rect Field{
         .x = evford::FieldLeft, .y = evford::FieldTop, .w = evford::FieldRight - evford::FieldLeft, .h = evford::FieldBottom - evford::FieldTop};
-    constexpr Rect ResetButton{.x = 816.0F, .y = 28.0F, .w = 112.0F, .h = 40.0F};
+    constexpr Rect Canvas{.x = 0.0F, .y = 0.0F, .w = evford::CanvasWidth, .h = evford::CanvasHeight};
+    constexpr Rect ResetButtonArea{.x = 816.0F, .y = 28.0F, .w = 112.0F, .h = 40.0F};
     constexpr Vec2 TitlePosition{.x = 32.0F, .y = 32.0F};
     constexpr Vec2 ResetLabelPosition{.x = 844.0F, .y = 44.0F};
     constexpr Vec2 SummaryPosition{.x = 32.0F, .y = 56.0F};
@@ -57,9 +58,9 @@ namespace
         return SDL_APP_FAILURE;
     }
 
-    // The particle field as a scene node: advances the world each fixed step and draws it, with its labels.
-    // Disabling the node pauses it: a disabled node keeps drawing but gets no updates.
-    class ParticleField : public aspire::graphics::Node
+    // The simulated particles: advances the world each fixed step and draws it. Disabling it pauses the simulation,
+    // while it keeps drawing.
+    class Particles : public aspire::graphics::Node
     {
     public:
         auto reseed() -> void
@@ -74,22 +75,11 @@ namespace
 
         auto draw(aspire::graphics::Renderer& x) const -> void override
         {
-            x.rect(Field, FieldColor);
-            x.outline(Field, BorderColor);
-            x.rect(ResetButton, BorderColor);
-
             for (std::size_t i = 0; i < evford::ParticleCount; ++i)
             {
                 x.rect({.x = world_.x.at(i), .y = world_.y.at(i), .w = evford::ParticleSize, .h = evford::ParticleSize},
                        Colors.at(i / ParticlesPerColor));
             }
-
-            // SDL's built-in debug font keeps this example entirely asset-free.
-            x.text("EVFORD / PARTICLE FIELD", TitlePosition, TitleColor);
-            x.text("RESET", ResetLabelPosition, TitleColor);
-            x.text("1024 particles. Four color batches. One shared world.", SummaryPosition, TextColor);
-            x.text("SPACE / CLICK / TAP  pause     R  reset     ESC  quit", ControlsPosition, TextColor);
-            x.text(getEnabled() ? "RUNNING" : "PAUSED", StatusPosition, StatusColor);
         }
 
     protected:
@@ -103,48 +93,73 @@ namespace
         evford::World world_;
     };
 
-    // Turns input into actions on the field. RenderService doesn't route input to nodes yet, so a service does it.
-    class Controls : public aspire::core::Service
+    // The whole canvas: draws the field and labels, and handles the keys and clicks. It stays enabled while the
+    // particles below it are paused, so it can still take the input that unpauses them.
+    class ParticleField : public aspire::graphics::Node
     {
     public:
-        explicit Controls(std::shared_ptr<ParticleField> field) : field_{std::move(field)}
+        explicit ParticleField(std::shared_ptr<Particles> particles) : particles_{std::move(particles)}
         {
+            // Covering the canvas also ignores presses in the letterbox around it.
+            setBounds(Canvas);
         }
 
-        auto event(aspire::core::Event& x) -> void override
+        auto reseed() const -> void
         {
-            if (const auto* key = std::get_if<aspire::core::EventKeyboard>(&x); key != nullptr)
+            particles_->reseed();
+        }
+
+        auto draw(aspire::graphics::Renderer& x) const -> void override
+        {
+            x.rect(Field, FieldColor);
+            x.outline(Field, BorderColor);
+
+            // SDL's built-in debug font keeps this example entirely asset-free.
+            x.text("EVFORD / PARTICLE FIELD", TitlePosition, TitleColor);
+            x.text("1024 particles. Four color batches. One shared world.", SummaryPosition, TextColor);
+            x.text("SPACE / CLICK / TAP  pause     R  reset     ESC  quit", ControlsPosition, TextColor);
+            x.text(particles_->getEnabled() ? "RUNNING" : "PAUSED", StatusPosition, StatusColor);
+        }
+
+        auto eventKeyboard(aspire::core::EventKeyboard& x) -> void override
+        {
+            if (x.type != aspire::core::EventKeyboard::Type::KeyPressed)
             {
-                if (key->type == aspire::core::EventKeyboard::Type::KeyPressed)
-                {
-                    pressKey(key->key);
-                }
+                return;
             }
-            else if (const auto* mouse = std::get_if<aspire::core::EventMouse>(&x); mouse != nullptr)
+
+            switch (x.key)
             {
-                if (mouse->type == aspire::core::EventMouse::Type::ButtonPressed && mouse->button == aspire::core::EventMouse::Button::Left)
-                {
-                    pressPointer(mouse->position);
-                }
+                case aspire::core::EventKeyboard::Key::Space:
+                    togglePause();
+                    break;
+                case aspire::core::EventKeyboard::Key::R:
+                    reseed();
+                    break;
+                case aspire::core::EventKeyboard::Key::Escape:
+                    quit();
+                    break;
+                default:
+                    return;
             }
+
+            x.handled = true;
         }
 
-        auto update([[maybe_unused]] float x) -> void override
+        // Only reached by presses the reset button didn't take.
+        auto eventMouse(aspire::core::EventMouse& x) -> void override
         {
-        }
-
-        auto updateFixed([[maybe_unused]] float x) -> void override
-        {
-        }
-
-        auto render() -> void override
-        {
+            if (x.type == aspire::core::EventMouse::Type::ButtonPressed && x.button == aspire::core::EventMouse::Button::Left)
+            {
+                togglePause();
+                x.handled = true;
+            }
         }
 
     private:
         auto togglePause() const -> void
         {
-            field_->setEnabled(!field_->getEnabled());
+            particles_->setEnabled(!particles_->getEnabled());
         }
 
         auto quit() const -> void
@@ -155,46 +170,36 @@ namespace
             }
         }
 
-        auto pressKey(aspire::core::EventKeyboard::Key x) const -> void
+        std::shared_ptr<Particles> particles_;
+    };
+
+    // The reset control. As a child of the field, it sees presses before the field does, and takes the ones on it.
+    class ResetButton : public aspire::graphics::Node
+    {
+    public:
+        ResetButton()
         {
-            switch (x)
-            {
-                case aspire::core::EventKeyboard::Key::Space:
-                    togglePause();
-                    break;
-                case aspire::core::EventKeyboard::Key::R:
-                    field_->reseed();
-                    break;
-                case aspire::core::EventKeyboard::Key::Escape:
-                    quit();
-                    break;
-                default:
-                    break;
-            }
+            setBounds(ResetButtonArea);
         }
 
-        auto pressPointer(Vec2 x) const -> void
+        auto draw(aspire::graphics::Renderer& x) const -> void override
         {
-            // Ignore presses in the letterbox. The reset control also works on touch screens.
-            if (x.x < 0.0F || x.x >= evford::CanvasWidth || x.y < 0.0F || x.y >= evford::CanvasHeight)
-            {
-                return;
-            }
-
-            const auto inReset =
-                x.x >= ResetButton.x && x.x < ResetButton.x + ResetButton.w && x.y >= ResetButton.y && x.y < ResetButton.y + ResetButton.h;
-
-            if (inReset)
-            {
-                field_->reseed();
-            }
-            else
-            {
-                togglePause();
-            }
+            x.rect(ResetButtonArea, BorderColor);
+            x.text("RESET", ResetLabelPosition, TitleColor);
         }
 
-        std::shared_ptr<ParticleField> field_;
+        auto eventMouse(aspire::core::EventMouse& x) -> void override
+        {
+            if (x.type == aspire::core::EventMouse::Type::ButtonPressed && x.button == aspire::core::EventMouse::Button::Left)
+            {
+                if (const auto field = getParent<ParticleField>(); field != nullptr)
+                {
+                    field->reseed();
+                }
+
+                x.handled = true;
+            }
+        }
     };
 
     // The SDL host: owns the window, renderer and Engine, and drives Engine from SDL's callbacks.
@@ -279,13 +284,14 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     const auto scene = std::make_shared<aspire::graphics::RenderService>();
     scene->setBackend(app.backend.get());
     scene->setClearColor(BackgroundColor);
-    const auto field = std::make_shared<ParticleField>();
+    const auto particles = std::make_shared<Particles>();
+    const auto field = std::make_shared<ParticleField>(particles);
+    field->addChild(particles);
+    field->addChild(std::make_shared<ResetButton>());
     scene->addChild(field);
 
-    // Controls come first, so they see each event before the scene.
     app.engine = std::make_shared<aspire::core::Engine>();
     app.engine->setIntervalFixed(FixedStep);
-    app.engine->addChild(std::make_shared<Controls>(field));
     app.engine->addChild(scene);
     app.engine->startup();
     app.previousTicks = SDL_GetTicksNS();
