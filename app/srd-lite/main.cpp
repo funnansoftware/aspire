@@ -139,7 +139,7 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
         const auto* const first = std::data(value);
         const auto* const last = std::next(first, std::ssize(value));
         const auto parsed = std::from_chars(first, last, frameLimit);
-        if (parsed.ec != std::errc{} || parsed.ptr != last || frameLimit == 0)
+        if (std::make_error_code(parsed.ec) || parsed.ptr != last || frameLimit == 0)
         {
             Log(SDL_LOG_PRIORITY_ERROR, "--frames requires a positive integer");
             return SDL_APP_FAILURE;
