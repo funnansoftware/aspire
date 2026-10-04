@@ -28,7 +28,7 @@ export namespace aspire::graphics
         auto add(DrawItem x) -> void
         {
             x.sequence = static_cast<std::uint32_t>(std::size(items_));
-            items_.emplace_back(std::move(x));
+            items_.emplace_back(x);
         }
 
         /// @brief Appends a clip rectangle for items to refer to.

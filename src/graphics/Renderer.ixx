@@ -24,7 +24,7 @@ export namespace aspire::graphics
         /// @brief Creates a renderer that records into a list with the given state.
         /// @param list The list to record into. It must outlive the renderer.
         /// @param state The transform, clip and layer to record with.
-        Renderer(DrawList& list, DrawState state) : list_{&list}, state_{std::move(state)}
+        Renderer(DrawList& list, DrawState state) : list_{&list}, state_{state}
         {
         }
 
@@ -80,6 +80,6 @@ export namespace aspire::graphics
 
     auto Renderer::add(DrawPrimitive x, float order) -> void
     {
-        list_->add(DrawItem{.layer = state_.layer, .order = order, .sequence = 0, .clip = state_.clip, .primitive = std::move(x)});
+        list_->add(DrawItem{.layer = state_.layer, .order = order, .sequence = 0, .clip = state_.clip, .primitive = x});
     }
 }
