@@ -6,6 +6,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     Color.test.cpp
     Node.test.cpp
     Rect.test.cpp
+    RenderService.test.cpp
     Transform.test.cpp
 )
 
