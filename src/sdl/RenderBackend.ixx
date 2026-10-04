@@ -178,7 +178,8 @@ export namespace aspire::sdl
                     [this](const aspire::graphics::DrawRect& rect)
                     {
                         const auto bounds = toSdl(rect.bounds);
-                        return setDrawColor(rect.color) && SDL_RenderFillRect(renderer_, &bounds);
+                        return setDrawColor(rect.color)
+                               && (rect.filled ? SDL_RenderFillRect(renderer_, &bounds) : SDL_RenderRect(renderer_, &bounds));
                     },
                     [this, &clip](const aspire::graphics::DrawText& text) { return drawText(text, clip); },
                 },

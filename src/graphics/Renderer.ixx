@@ -42,6 +42,12 @@ export namespace aspire::graphics
         /// @param order The order within the layer. Zero lets tree order decide.
         auto rect(Rect bounds, Color color, float order = 0.0F) -> void;
 
+        /// @brief Draws a rectangle's outline, one screen pixel wide.
+        /// @param bounds The rectangle, in local coordinates.
+        /// @param color The line color.
+        /// @param order The order within the layer. Zero lets tree order decide.
+        auto outline(Rect bounds, Color color, float order = 0.0F) -> void;
+
         /// @brief Draws a line of text, scaled with the node.
         /// @param value The text. It must stay valid until the list is submitted.
         /// @param position Its top-left corner, in local coordinates.
@@ -70,7 +76,12 @@ export namespace aspire::graphics
 
     auto Renderer::rect(Rect bounds, Color color, float order) -> void
     {
-        add(DrawRect{.bounds = state_.transform.apply(bounds), .color = color}, order);
+        add(DrawRect{.bounds = state_.transform.apply(bounds), .color = color, .filled = true}, order);
+    }
+
+    auto Renderer::outline(Rect bounds, Color color, float order) -> void
+    {
+        add(DrawRect{.bounds = state_.transform.apply(bounds), .color = color, .filled = false}, order);
     }
 
     auto Renderer::text(std::string_view value, aspire::core::Vec2 position, Color color, float order) -> void
