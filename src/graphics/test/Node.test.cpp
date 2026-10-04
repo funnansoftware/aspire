@@ -155,6 +155,7 @@ TEST(Collect, spriteAndRectBoundsAreInScreenCoordinates)
         {
             x.sprite("tiles.png", TileRegion, TileBounds);
             x.rect(Small, aspire::graphics::White);
+            x.outline(Small, aspire::graphics::White);
         }
     };
 
@@ -165,7 +166,7 @@ TEST(Collect, spriteAndRectBoundsAreInScreenCoordinates)
 
     DrawList list;
     Draw(*node, list);
-    ASSERT_EQ(std::size(list.items()), 2);
+    ASSERT_EQ(std::size(list.items()), 3);
 
     // Keep the span: clang's -Wdangling-gsl flags front() and back() on the temporary items() returns.
     const auto items = list.items();
@@ -174,9 +175,15 @@ TEST(Collect, spriteAndRectBoundsAreInScreenCoordinates)
     ExpectRect(sprite.region, TileRegion);
     ExpectRect(sprite.bounds, {.x = Offset.x, .y = Offset.y, .w = TileBounds.w * Double.x, .h = TileBounds.h * Double.y});
 
-    const auto& rect = std::get<aspire::graphics::DrawRect>(items.back().primitive);
+    const auto& rect = std::get<aspire::graphics::DrawRect>(std::next(std::begin(items))->primitive);
+    EXPECT_TRUE(rect.filled);
     ExpectRect(rect.bounds,
                {.x = Offset.x + (Small.x * Double.x), .y = Offset.y + (Small.y * Double.y), .w = Small.w * Double.x, .h = Small.h * Double.y});
+
+    // An outline has the same screen bounds, unfilled.
+    const auto& outline = std::get<aspire::graphics::DrawRect>(items.back().primitive);
+    EXPECT_FALSE(outline.filled);
+    ExpectRect(outline.bounds, rect.bounds);
 }
 
 TEST(Collect, clipsIntersectDownTheTree)

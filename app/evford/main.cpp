@@ -8,31 +8,38 @@
 
 import std;
 import aspire.core;
+import aspire.graphics;
 import aspire.sdl;
 
 #include "world.hpp"
 
 namespace
 {
+    using aspire::core::Vec2;
+    using aspire::graphics::Color;
+    using aspire::graphics::Rect;
+
     constexpr std::size_t ColorCount = 4;
     constexpr std::size_t ParticlesPerColor = evford::ParticleCount / ColorCount;
     static_assert(evford::ParticleCount % ColorCount == 0);
-    constexpr std::array<SDL_Color, ColorCount> Colors{{{.r = 107, .g = 222, .b = 195, .a = 255},
-                                                        {.r = 119, .g = 184, .b = 255, .a = 255},
-                                                        {.r = 195, .g = 164, .b = 255, .a = 255},
-                                                        {.r = 255, .g = 185, .b = 132, .a = 255}}};
-    constexpr SDL_Color BackgroundColor{.r = 14, .g = 20, .b = 30, .a = 255};
-    constexpr SDL_Color FieldColor{.r = 21, .g = 31, .b = 44, .a = 255};
-    constexpr SDL_Color BorderColor{.r = 48, .g = 65, .b = 84, .a = 255};
-    constexpr SDL_Color TitleColor{.r = 228, .g = 237, .b = 247, .a = 255};
-    constexpr SDL_Color TextColor{.r = 150, .g = 171, .b = 194, .a = 255};
-    constexpr SDL_Color StatusColor{.r = 107, .g = 222, .b = 195, .a = 255};
-    constexpr SDL_FRect ResetButton{.x = 816.0F, .y = 28.0F, .w = 112.0F, .h = 40.0F};
-    constexpr SDL_FPoint TitlePosition{.x = 32.0F, .y = 32.0F};
-    constexpr SDL_FPoint ResetLabelPosition{.x = 844.0F, .y = 44.0F};
-    constexpr SDL_FPoint SummaryPosition{.x = 32.0F, .y = 56.0F};
-    constexpr SDL_FPoint ControlsPosition{.x = 32.0F, .y = 496.0F};
-    constexpr SDL_FPoint StatusPosition{.x = 864.0F, .y = 496.0F};
+    constexpr std::array<Color, ColorCount> Colors{{{.r = 107, .g = 222, .b = 195, .a = 255},
+                                                    {.r = 119, .g = 184, .b = 255, .a = 255},
+                                                    {.r = 195, .g = 164, .b = 255, .a = 255},
+                                                    {.r = 255, .g = 185, .b = 132, .a = 255}}};
+    constexpr Color BackgroundColor{.r = 14, .g = 20, .b = 30, .a = 255};
+    constexpr Color FieldColor{.r = 21, .g = 31, .b = 44, .a = 255};
+    constexpr Color BorderColor{.r = 48, .g = 65, .b = 84, .a = 255};
+    constexpr Color TitleColor{.r = 228, .g = 237, .b = 247, .a = 255};
+    constexpr Color TextColor{.r = 150, .g = 171, .b = 194, .a = 255};
+    constexpr Color StatusColor{.r = 107, .g = 222, .b = 195, .a = 255};
+    constexpr Rect Field{
+        .x = evford::FieldLeft, .y = evford::FieldTop, .w = evford::FieldRight - evford::FieldLeft, .h = evford::FieldBottom - evford::FieldTop};
+    constexpr Rect ResetButton{.x = 816.0F, .y = 28.0F, .w = 112.0F, .h = 40.0F};
+    constexpr Vec2 TitlePosition{.x = 32.0F, .y = 32.0F};
+    constexpr Vec2 ResetLabelPosition{.x = 844.0F, .y = 44.0F};
+    constexpr Vec2 SummaryPosition{.x = 32.0F, .y = 56.0F};
+    constexpr Vec2 ControlsPosition{.x = 32.0F, .y = 496.0F};
+    constexpr Vec2 StatusPosition{.x = 864.0F, .y = 496.0F};
 
     // 1/120 s isn't a whole number of nanoseconds; truncating it is fine.
     constexpr auto FixedStep = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>{1.0 / 120.0});
@@ -50,22 +57,57 @@ namespace
         return SDL_APP_FAILURE;
     }
 
-    auto SetDrawColor(SDL_Renderer* renderer, SDL_Color color) -> bool
-    {
-        return SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    }
-
-    auto RenderText(SDL_Renderer* renderer, SDL_FPoint position, const char* text) -> bool
-    {
-        return SDL_RenderDebugText(renderer, position.x, position.y, text);
-    }
-
-    // The particle field as an Engine service: input, fixed-step simulation, and drawing.
-    class Simulation : public aspire::core::Service
+    // The particle field as a scene node: advances the world each fixed step and draws it, with its labels.
+    // Disabling the node pauses it: a disabled node keeps drawing but gets no updates.
+    class ParticleField : public aspire::graphics::Node
     {
     public:
-        // The renderer must outlive the service's last frame. The host shuts Engine down before destroying it.
-        explicit Simulation(SDL_Renderer* renderer) : renderer_{renderer}
+        auto reseed() -> void
+        {
+            evford::Reset(world_);
+        }
+
+        auto updateFixed(float x) -> void override
+        {
+            evford::Advance(world_, x);
+        }
+
+        auto draw(aspire::graphics::Renderer& x) const -> void override
+        {
+            x.rect(Field, FieldColor);
+            x.outline(Field, BorderColor);
+            x.rect(ResetButton, BorderColor);
+
+            for (std::size_t i = 0; i < evford::ParticleCount; ++i)
+            {
+                x.rect({.x = world_.x.at(i), .y = world_.y.at(i), .w = evford::ParticleSize, .h = evford::ParticleSize},
+                       Colors.at(i / ParticlesPerColor));
+            }
+
+            // SDL's built-in debug font keeps this example entirely asset-free.
+            x.text("EVFORD / PARTICLE FIELD", TitlePosition, TitleColor);
+            x.text("RESET", ResetLabelPosition, TitleColor);
+            x.text("1024 particles. Four color batches. One shared world.", SummaryPosition, TextColor);
+            x.text("SPACE / CLICK / TAP  pause     R  reset     ESC  quit", ControlsPosition, TextColor);
+            x.text(getEnabled() ? "RUNNING" : "PAUSED", StatusPosition, StatusColor);
+        }
+
+    protected:
+        auto onStartup() -> void override
+        {
+            reseed();
+            setEnabled(true);
+        }
+
+    private:
+        evford::World world_;
+    };
+
+    // Turns input into actions on the field. RenderService doesn't route input to nodes yet, so a service does it.
+    class Controls : public aspire::core::Service
+    {
+    public:
+        explicit Controls(std::shared_ptr<ParticleField> field) : field_{std::move(field)}
         {
         }
 
@@ -87,63 +129,51 @@ namespace
             }
         }
 
-        auto update(float /*unused*/) -> void override
+        auto update([[maybe_unused]] float x) -> void override
         {
         }
 
-        auto updateFixed(float x) -> void override
+        auto updateFixed([[maybe_unused]] float x) -> void override
         {
-            // Engine drains its fixed steps every frame, so steps skipped while paused don't build up.
-            if (!paused_)
-            {
-                evford::Advance(world_, x);
-            }
         }
 
         auto render() -> void override
         {
-            if (!draw())
-            {
-                Log(SDL_LOG_PRIORITY_ERROR, std::format("Render frame: {}", SDL_GetError()));
-                quit(EXIT_FAILURE);
-            }
-        }
-
-    protected:
-        auto onStartup() -> void override
-        {
-            evford::Reset(world_);
-            paused_ = false;
         }
 
     private:
-        auto quit(int x) const -> void
+        auto togglePause() const -> void
+        {
+            field_->setEnabled(!field_->getEnabled());
+        }
+
+        auto quit() const -> void
         {
             if (const auto engine = getParent<aspire::core::Engine>(); engine != nullptr)
             {
-                engine->quit(x);
+                engine->quit();
             }
         }
 
-        auto pressKey(aspire::core::EventKeyboard::Key x) -> void
+        auto pressKey(aspire::core::EventKeyboard::Key x) const -> void
         {
             switch (x)
             {
                 case aspire::core::EventKeyboard::Key::Space:
-                    paused_ = !paused_;
+                    togglePause();
                     break;
                 case aspire::core::EventKeyboard::Key::R:
-                    evford::Reset(world_);
+                    field_->reseed();
                     break;
                 case aspire::core::EventKeyboard::Key::Escape:
-                    quit(EXIT_SUCCESS);
+                    quit();
                     break;
                 default:
                     break;
             }
         }
 
-        auto pressPointer(aspire::core::Vec2 x) -> void
+        auto pressPointer(Vec2 x) const -> void
         {
             // Ignore presses in the letterbox. The reset control also works on touch screens.
             if (x.x < 0.0F || x.x >= evford::CanvasWidth || x.y < 0.0F || x.y >= evford::CanvasHeight)
@@ -151,63 +181,20 @@ namespace
                 return;
             }
 
-            const SDL_FPoint point{.x = x.x, .y = x.y};
+            const auto inReset =
+                x.x >= ResetButton.x && x.x < ResetButton.x + ResetButton.w && x.y >= ResetButton.y && x.y < ResetButton.y + ResetButton.h;
 
-            if (SDL_PointInRectFloat(&point, &ResetButton))
+            if (inReset)
             {
-                evford::Reset(world_);
+                field_->reseed();
             }
             else
             {
-                paused_ = !paused_;
+                togglePause();
             }
         }
 
-        auto draw() -> bool
-        {
-            auto* renderer = renderer_;
-            if (!SetDrawColor(renderer, BackgroundColor) || !SDL_RenderClear(renderer))
-            {
-                return false;
-            }
-
-            const SDL_FRect field{.x = evford::FieldLeft,
-                                  .y = evford::FieldTop,
-                                  .w = evford::FieldRight - evford::FieldLeft,
-                                  .h = evford::FieldBottom - evford::FieldTop};
-            if (!SetDrawColor(renderer, FieldColor) || !SDL_RenderFillRect(renderer, &field) || !SetDrawColor(renderer, BorderColor)
-                || !SDL_RenderRect(renderer, &field) || !SDL_RenderFillRect(renderer, &ResetButton))
-            {
-                return false;
-            }
-
-            // Rendering consumes simulation columns into one reusable SDL buffer. Not std::views::zip: with
-            // aspire.core imported, libc++'s zip_view hits ambiguous partial specializations under clang 22.
-            std::ranges::transform(world_.x, world_.y, std::begin(rectangles_),
-                                   [](float x, float y) { return SDL_FRect{.x = x, .y = y, .w = evford::ParticleSize, .h = evford::ParticleSize}; });
-            for (std::size_t batch = 0; batch < ColorCount; ++batch)
-            {
-                const auto rectangles = std::span{rectangles_}.subspan(batch * ParticlesPerColor, ParticlesPerColor);
-                if (!SetDrawColor(renderer, Colors.at(batch))
-                    || !SDL_RenderFillRects(renderer, std::data(rectangles), static_cast<int>(std::size(rectangles))))
-                {
-                    return false;
-                }
-            }
-
-            // SDL's built-in debug font keeps this example entirely asset-free.
-            return SetDrawColor(renderer, TitleColor) && RenderText(renderer, TitlePosition, "EVFORD / PARTICLE FIELD")
-                   && RenderText(renderer, ResetLabelPosition, "RESET") && SetDrawColor(renderer, TextColor)
-                   && RenderText(renderer, SummaryPosition, "1024 particles. Four color batches. One shared world.")
-                   && RenderText(renderer, ControlsPosition, "SPACE / CLICK / TAP  pause     R  reset     ESC  quit")
-                   && SetDrawColor(renderer, StatusColor) && RenderText(renderer, StatusPosition, paused_ ? "PAUSED" : "RUNNING")
-                   && SDL_RenderPresent(renderer);
-        }
-
-        SDL_Renderer* renderer_;
-        evford::World world_;
-        std::array<SDL_FRect, evford::ParticleCount> rectangles_{};
-        bool paused_{false};
+        std::shared_ptr<ParticleField> field_;
     };
 
     // The SDL host: owns the window, renderer and Engine, and drives Engine from SDL's callbacks.
@@ -215,6 +202,7 @@ namespace
     {
         SDL_Window* window = nullptr;
         SDL_Renderer* renderer = nullptr;
+        std::unique_ptr<aspire::sdl::RenderBackend> backend;
         std::shared_ptr<aspire::core::Engine> engine;
         Uint64 previousTicks = 0;
         std::uint64_t frameLimit = 0;
@@ -286,9 +274,19 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
         Log(SDL_LOG_PRIORITY_INFO, std::format("Vsync unavailable: {}", SDL_GetError()));
     }
 
+    app.backend = std::make_unique<aspire::sdl::RenderBackend>(app.renderer);
+
+    const auto scene = std::make_shared<aspire::graphics::RenderService>();
+    scene->setBackend(app.backend.get());
+    scene->setClearColor(BackgroundColor);
+    const auto field = std::make_shared<ParticleField>();
+    scene->addChild(field);
+
+    // Controls come first, so they see each event before the scene.
     app.engine = std::make_shared<aspire::core::Engine>();
     app.engine->setIntervalFixed(FixedStep);
-    app.engine->addChild(std::make_shared<Simulation>(app.renderer));
+    app.engine->addChild(std::make_shared<Controls>(field));
+    app.engine->addChild(scene);
     app.engine->startup();
     app.previousTicks = SDL_GetTicksNS();
     return SDL_APP_CONTINUE;
@@ -366,12 +364,13 @@ auto SDL_AppQuit(void* appstate, SDL_AppResult /*result*/) -> void
     const std::unique_ptr<App> app(static_cast<App*>(appstate));
     if (app != nullptr)
     {
-        // Shut the services down while the renderer they draw with is still valid.
+        // Shut the services down, then release the backend's textures, while the renderer is still valid.
         if (app->engine != nullptr)
         {
             app->engine->shutdown();
             app->engine.reset();
         }
+        app->backend.reset();
         SDL_DestroyRenderer(app->renderer);
         SDL_DestroyWindow(app->window);
     }

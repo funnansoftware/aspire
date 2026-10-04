@@ -58,7 +58,7 @@ namespace
 
     auto FillRect(Rect bounds, Color color, std::uint32_t clip = 0) -> DrawItem
     {
-        return Item(aspire::graphics::DrawRect{.bounds = bounds, .color = color}, clip);
+        return Item(aspire::graphics::DrawRect{.bounds = bounds, .color = color, .filled = true}, clip);
     }
 
     auto Text(std::string_view text, aspire::core::Vec2 position, aspire::core::Vec2 scale, std::uint32_t clip = 0) -> DrawItem
@@ -178,6 +178,16 @@ TEST_F(RenderBackendTest, rectFillsItsPixels)
 
     ExpectColor(pixel(InCenter, InCenter), Red);
     ExpectColor(pixel(InTopLeft, InTopLeft), Clear);
+}
+
+TEST_F(RenderBackendTest, outlineDrawsOnlyTheEdge)
+{
+    DrawList list;
+    list.add(Item(aspire::graphics::DrawRect{.bounds = CenterCell, .color = Red, .filled = false}));
+    ASSERT_TRUE(backend().submit(list, Clear));
+
+    ExpectColor(pixel(InCenter - 4, InCenter - 4), Red);
+    ExpectColor(pixel(InCenter, InCenter), Clear);
 }
 
 TEST_F(RenderBackendTest, translucentRectBlends)
