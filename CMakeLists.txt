@@ -12,7 +12,6 @@ project(aspire)
 include(CTest)
 include(GNUInstallDirs)
 
-# The raylib-based srd-lite app is not part of the SDL3 build.
 add_subdirectory(src)
 add_subdirectory(app)
 
