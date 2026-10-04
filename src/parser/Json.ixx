@@ -36,7 +36,7 @@ export namespace aspire::parser
 
         if (object == nullptr)
         {
-            std::println("Type not registered: {}", typeIt->get<std::string>());
+            std::println(std::cerr, "Skipped object: type '{}' isn't registered", typeIt->get<std::string>());
             return nullptr;
         }
 
@@ -88,19 +88,17 @@ export namespace aspire::parser
         for (const auto& item : json.items())
         {
             auto* property = object->getProperty(item.key());
-            std::println("Processing property: {}", item.key());
 
+            // Problems with one property are reported and skipped, so the rest of the object still loads.
             if (property == nullptr)
             {
-                std::println("Property not found: {}", item.key());
-                // Add error.
+                std::println(std::cerr, "Skipped property '{}': the object has no property of that name", item.key());
                 continue;
             }
 
             if (property->isReadOnly())
             {
-                std::println("Property is read-only: {}", item.key());
-                // Add error.
+                std::println(std::cerr, "Skipped property '{}': it's read-only", item.key());
                 continue;
             }
 
