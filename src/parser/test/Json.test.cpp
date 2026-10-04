@@ -95,3 +95,60 @@ TEST(ReadFile, readOnlyPropertyIsSkipped)
     ASSERT_NE(jsonObj, nullptr);
     EXPECT_EQ(jsonObj->texture.generic_string(), "after.png");
 }
+
+TEST(ReadFile, filesResolveRelativeToTheirOwnFile)
+{
+    aspire::core::ObjectFactory factory;
+    factory.registerObject<JsonObject>();
+
+    // root.json names sub/child.json, which names leaf.json next to itself, and leaf.json names an absolute path.
+    const auto tmp = std::filesystem::temp_directory_path() / "aspire-parser-test-relative";
+    std::filesystem::create_directories(tmp / "sub");
+    const auto absolute = tmp / "absolute.json";
+
+    std::ofstream(tmp / "root.json") << R"({ "type": "JsonObject", "name": "root", "files": ["sub/child.json"] })";
+    std::ofstream(tmp / "sub" / "child.json") << R"({ "type": "JsonObject", "name": "child", "files": ["leaf.json"] })";
+    std::ofstream(tmp / "sub" / "leaf.json") << nlohmann::json{
+        {"type", "JsonObject"},
+        {"name", "leaf"},
+        {"files", {absolute.generic_string()}}}.dump();
+    std::ofstream(absolute) << R"({ "type": "JsonObject", "name": "absolute" })";
+
+    // Nothing depends on the working directory: each file's paths resolve against its own folder.
+    const auto root = aspire::parser::ReadFile(factory, tmp / "root.json");
+
+    EXPECT_GT(std::filesystem::remove_all(tmp), 0);
+
+    ASSERT_NE(root, nullptr);
+    const auto child = root->getChild();
+    ASSERT_NE(child, nullptr);
+    EXPECT_EQ(child->getName(), "child");
+    const auto leaf = child->getChild();
+    ASSERT_NE(leaf, nullptr);
+    EXPECT_EQ(leaf->getName(), "leaf");
+    const auto last = leaf->getChild();
+    ASSERT_NE(last, nullptr);
+    EXPECT_EQ(last->getName(), "absolute");
+}
+
+TEST(ReadJson, inlineObjectsResolveFilesAgainstTheBase)
+{
+    aspire::core::ObjectFactory factory;
+    factory.registerObject<JsonObject>();
+
+    const auto tmp = std::filesystem::temp_directory_path() / "aspire-parser-test-base";
+    std::filesystem::create_directories(tmp);
+    std::ofstream(tmp / "leaf.json") << R"({ "type": "JsonObject", "name": "leaf" })";
+
+    auto json = nlohmann::json::parse(R"({ "type": "JsonObject", "objects": [ { "type": "JsonObject", "files": ["leaf.json"] } ] })");
+    const auto root = aspire::parser::ReadJson(factory, json, tmp);
+
+    EXPECT_GT(std::filesystem::remove_all(tmp), 0);
+
+    ASSERT_NE(root, nullptr);
+    const auto inlined = root->getChild();
+    ASSERT_NE(inlined, nullptr);
+    const auto leaf = inlined->getChild();
+    ASSERT_NE(leaf, nullptr);
+    EXPECT_EQ(leaf->getName(), "leaf");
+}

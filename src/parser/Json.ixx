@@ -11,7 +11,19 @@ export namespace aspire::parser
 {
     auto ReadFile(const aspire::core::ObjectFactory& factory, const std::filesystem::path& x) -> std::shared_ptr<aspire::core::Object>;
 
-    auto ReadJson(const aspire::core::ObjectFactory& factory, nlohmann::json& json) -> std::shared_ptr<aspire::core::Object>
+    /// @brief Builds an object tree from JSON.
+    ///
+    /// `type` picks the class from `factory`, `name` sets the name, `objects` lists child objects inline, and
+    /// `files` lists JSON files to read as children. Every other key sets the property of that name.
+    ///
+    /// @param factory Creates objects by type name.
+    /// @param json The JSON. Keys it uses are removed from it.
+    /// @param base The folder relative `files` resolve against. Empty means the working directory.
+    /// @return The object, or null if `type` is missing or not registered.
+    // ReadJson and ReadFile call each other to follow `files`; the depth is the nesting of the data's files.
+    // NOLINTNEXTLINE(misc-no-recursion)
+    auto ReadJson(const aspire::core::ObjectFactory& factory, nlohmann::json& json, const std::filesystem::path& base = {})
+        -> std::shared_ptr<aspire::core::Object>
     {
         auto typeIt = json.find("type");
 
@@ -65,7 +77,8 @@ export namespace aspire::parser
             {
                 for (const auto& file : *fileIt)
                 {
-                    files.emplace_back(file.get<std::filesystem::path>());
+                    // Joining an absolute path replaces the base, so absolute paths are used as they are.
+                    files.emplace_back(base / file.get<std::filesystem::path>());
                 }
             }
 
@@ -102,16 +115,20 @@ export namespace aspire::parser
 
         for (auto& o : objects)
         {
-            auto child = ReadJson(factory, o);
+            // Inline objects come from the same file, so their files resolve against the same folder.
+            auto child = ReadJson(factory, o, base);
             object->addChild(child);
         }
 
         return object;
     }
 
+    // NOLINTNEXTLINE(misc-no-recursion)
     auto ReadFile(const aspire::core::ObjectFactory& factory, const std::filesystem::path& x) -> std::shared_ptr<aspire::core::Object>
     {
         auto json = nlohmann::json::parse(std::ifstream{x}, nullptr, true, true);
-        return ReadJson(factory, json);
+
+        // A file's own files are relative to its folder.
+        return ReadJson(factory, json, x.parent_path());
     }
 }

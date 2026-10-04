@@ -11,12 +11,15 @@ target_sources(${PROJECT_NAME} PUBLIC
         DrawSprite.ixx
         DrawState.ixx
         DrawText.ixx
+        Label.ixx
         Module.ixx
         Node.ixx
         Rect.ixx
         RenderBackend.ixx
         Renderer.ixx
         RenderService.ixx
+        Sprite.ixx
+        TileMap.ixx
         Transform.ixx
 )
 
