@@ -82,6 +82,12 @@ export namespace aspire::core
                 name = name.substr(0, bracketPos);
             }
 
+            // GCC names a type that belongs to a named module with its module attached: "Node@aspire.graphics".
+            if (const auto atPos = name.find('@'); atPos != std::string_view::npos)
+            {
+                name = name.substr(0, atPos);
+            }
+
             if (const auto nsPos = name.rfind("::"); nsPos != std::string_view::npos)
             {
                 name = name.substr(nsPos + 2);

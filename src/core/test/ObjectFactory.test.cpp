@@ -21,6 +21,16 @@ TEST(ObjectFactory, RegisterAndCreateObject)
     EXPECT_NE(obj, nullptr);
 }
 
+TEST(ObjectFactory, RegisterModuleTypeByDefaultName)
+{
+    aspire::core::ObjectFactory factory;
+
+    // Object belongs to the aspire.core module. GCC adds that to the type's name, which the factory must strip.
+    factory.registerObject<aspire::core::Object>();
+
+    EXPECT_NE(factory.create("Object"), nullptr);
+}
+
 TEST(ObjectFactory, RegisterWithCustomName)
 {
     aspire::core::ObjectFactory factory;

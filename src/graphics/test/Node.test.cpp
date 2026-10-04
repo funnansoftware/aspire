@@ -139,7 +139,8 @@ TEST(Collect, positionAndScaleComposeDownTheTree)
     DrawList list;
     Draw(*root, list);
 
-    const auto& drawn = Text(list.items().back());
+    const auto items = list.items();
+    const auto& drawn = Text(items.back());
     EXPECT_FLOAT_EQ(drawn.position.x, Offset.x + (ChildPosition.x * Double.x));
     EXPECT_FLOAT_EQ(drawn.position.y, Offset.y + (ChildPosition.y * Double.y));
     EXPECT_FLOAT_EQ(drawn.scale.x, Double.x);
@@ -166,12 +167,14 @@ TEST(Collect, spriteAndRectBoundsAreInScreenCoordinates)
     Draw(*node, list);
     ASSERT_EQ(std::size(list.items()), 2);
 
-    const auto& sprite = std::get<aspire::graphics::DrawSprite>(list.items().front().primitive);
+    // Keep the span: clang's -Wdangling-gsl flags front() and back() on the temporary items() returns.
+    const auto items = list.items();
+    const auto& sprite = std::get<aspire::graphics::DrawSprite>(items.front().primitive);
     EXPECT_EQ(sprite.source, "tiles.png");
     ExpectRect(sprite.region, TileRegion);
     ExpectRect(sprite.bounds, {.x = Offset.x, .y = Offset.y, .w = TileBounds.w * Double.x, .h = TileBounds.h * Double.y});
 
-    const auto& rect = std::get<aspire::graphics::DrawRect>(list.items().back().primitive);
+    const auto& rect = std::get<aspire::graphics::DrawRect>(items.back().primitive);
     ExpectRect(rect.bounds,
                {.x = Offset.x + (Small.x * Double.x), .y = Offset.y + (Small.y * Double.y), .w = Small.w * Double.x, .h = Small.h * Double.y});
 }
@@ -217,7 +220,8 @@ TEST(Collect, emptyClipIntersectionIsKept)
 
     // The child still draws; its clip just covers nothing, so the backend draws nothing for it.
     ASSERT_EQ(std::size(list.items()), 2);
-    EXPECT_FLOAT_EQ(ClipOf(list, list.items().back()).w, 0.0F);
+    const auto items = list.items();
+    EXPECT_FLOAT_EQ(ClipOf(list, items.back()).w, 0.0F);
 }
 
 TEST(Collect, nodesWithoutClipHaveClipZero)
@@ -228,7 +232,8 @@ TEST(Collect, nodesWithoutClipHaveClipZero)
     DrawList list;
     Draw(*root, list);
 
-    EXPECT_EQ(list.items().front().clip, 0);
+    const auto items = list.items();
+    EXPECT_EQ(items.front().clip, 0);
 }
 
 TEST(Collect, layerIsInheritedUnlessSet)
