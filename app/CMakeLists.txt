@@ -1,3 +1,5 @@
 add_subdirectory(evford)
 add_subdirectory(scope)
+add_subdirectory(scopegpu)
+add_subdirectory(scopegpu2d)
 add_subdirectory(srd-lite)

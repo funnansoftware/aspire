@@ -23,6 +23,15 @@
                 }
             ]
         },
+        {
+            "name": "glslang",
+            "host": true,
+            "default-features": false,
+            "features": [
+                "tools"
+            ],
+            "platform": "!android & !emscripten"
+        },
         "gtest",
         "nameof",
         "nlohmann-json",
@@ -32,6 +41,11 @@
                 "harfbuzz"
             ],
             "platform": "!android"
+        },
+        {
+            "name": "spirv-cross",
+            "host": true,
+            "platform": "!android & !emscripten"
         }
     ],
     "default-features": [

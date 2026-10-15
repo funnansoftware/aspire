@@ -17,7 +17,11 @@ namespace
     constexpr int WindowHeight = 720;
     constexpr SDL_WindowFlags WindowFlags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
     constexpr double NanosecondsPerSecond = 1e9;
+    constexpr double NanosecondsPerMillisecond = 1e6;
     constexpr std::string_view FontFile = "fonts/B612Mono-Regular.ttf";
+
+    // How many frames' times are made room for up front; a longer run grows the room as it goes.
+    constexpr std::uint64_t MostTimedFrames = 1U << 20U;
 
     // How often the frame rate in the readouts is worked out.
     constexpr double RateSeconds = 0.5;
@@ -50,13 +54,32 @@ namespace
         // Starts frozen, at the same moment every run, so captures can be compared.
         bool paused{};
         bool noGlow{};
+        int width{WindowWidth};
+        int height{WindowHeight};
     };
+
+    // Parses a positive whole number.
+    auto ParsePositive(std::string_view x, auto& value) -> bool
+    {
+        const auto* const first = std::data(x);
+        const auto* const last = std::next(first, std::ssize(x));
+        const auto parsed = std::from_chars(first, last, value);
+        return !std::make_error_code(parsed.ec) && parsed.ptr == last && value > 0;
+    }
+
+    // Parses the value of --size, a width and height such as 1920x1080.
+    auto ParseSize(std::string_view x, Options& options) -> bool
+    {
+        const auto by = x.find('x');
+        return by != std::string_view::npos && ParsePositive(x.substr(0, by), options.width) && ParsePositive(x.substr(by + 1), options.height);
+    }
 
     // Parses the command line. Empty if the app should exit, with `result` saying how.
     auto Parse(std::span<char*> arguments, SDL_AppResult& result) -> std::optional<Options>
     {
         constexpr std::string_view framesPrefix = "--frames=";
         constexpr std::string_view capturePrefix = "--capture=";
+        constexpr std::string_view sizePrefix = "--size=";
         Options options;
 
         const auto reject = [&result](std::string_view message) -> std::optional<Options>
@@ -71,8 +94,8 @@ namespace
             if (argument == "--help")
             {
                 Log(SDL_LOG_PRIORITY_INFO,
-                    "Usage: scope [--paused] [--no-glow] [--frames=N [--capture=FILE.png] [--benchmark]]  (N must be positive; omit for "
-                    "interactive mode)");
+                    "Usage: scope [--paused] [--no-glow] [--size=WxH] [--frames=N [--capture=FILE.png] [--benchmark]]  (N must be positive; "
+                    "omit for interactive mode)");
                 result = SDL_APP_SUCCESS;
                 return std::nullopt;
             }
@@ -101,17 +124,22 @@ namespace
                 continue;
             }
 
+            if (argument.starts_with(sizePrefix))
+            {
+                if (!ParseSize(argument.substr(std::size(sizePrefix)), options))
+                {
+                    return reject("--size requires a width and height, such as --size=1920x1080");
+                }
+
+                continue;
+            }
+
             if (!argument.starts_with(framesPrefix))
             {
                 return reject(std::format("Unknown argument: {}", argument));
             }
 
-            const auto value = argument.substr(std::size(framesPrefix));
-            const auto* const first = std::data(value);
-            const auto* const last = std::next(first, std::ssize(value));
-            const auto parsed = std::from_chars(first, last, options.frames);
-
-            if (std::make_error_code(parsed.ec) || parsed.ptr != last || options.frames == 0)
+            if (!ParsePositive(argument.substr(std::size(framesPrefix)), options.frames))
             {
                 return reject("--frames requires a positive integer");
             }
@@ -138,6 +166,10 @@ namespace
         Uint64 startTicks = 0;
         std::uint64_t renderedFrames = 0;
         double paintMilliseconds = 0.0;
+        // SDL's renderer records most of a frame, submits it and waits for the swapchain as it presents.
+        double presentMilliseconds = 0.0;
+        // How long each frame took from the one before.
+        std::vector<double> frameMilliseconds;
         // The frames made since the frame rate was last worked out, and when that was.
         Uint64 rateTicks = 0;
         std::uint32_t rateFrames = 0;
@@ -151,7 +183,7 @@ namespace
     // Creates the window with a renderer: SDL's GPU renderer where the platform has one.
     auto OpenWindow(App& app) -> bool
     {
-        app.window = SDL_CreateWindow(WindowTitle, WindowWidth, WindowHeight, WindowFlags);
+        app.window = SDL_CreateWindow(WindowTitle, app.options.width, app.options.height, WindowFlags);
 
         if (app.window == nullptr)
         {
@@ -240,7 +272,34 @@ namespace
             return Failed("Paint frame");
         }
 
-        return Capture(app) && (SDL_RenderPresent(app.renderer) || Failed("Present frame"));
+        if (!Capture(app))
+        {
+            return false;
+        }
+
+        const auto presenting = SDL_GetTicksNS();
+        const auto presented = SDL_RenderPresent(app.renderer);
+        app.presentMilliseconds += static_cast<double>(SDL_GetTicksNS() - presenting) / NanosecondsPerMillisecond;
+        return presented || Failed("Present frame");
+    }
+
+    // Describes how long frames took, from one to the next: the median, the slow tail, and the slowest.
+    auto FrameTimes(std::vector<double> milliseconds) -> std::string
+    {
+        constexpr double median = 0.5;
+        constexpr double slow = 0.95;
+        constexpr double slowest = 0.99;
+
+        if (std::empty(milliseconds))
+        {
+            return "Frame time unmeasured";
+        }
+
+        std::ranges::sort(milliseconds);
+        const auto at = [&milliseconds](double share)
+        { return milliseconds.at(static_cast<std::size_t>(share * static_cast<double>(std::size(milliseconds) - 1))); };
+        return std::format("Frame time p50 {:.3f} ms, p95 {:.3f} ms, p99 {:.3f} ms, max {:.3f} ms", at(median), at(slow), at(slowest),
+                           milliseconds.back());
     }
 
     // Counts a frame, and every so often works out the frame rate the readouts show.
@@ -310,6 +369,7 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     auto& app = *state;
     *appstate = state.release(); // SDL_AppQuit also runs after partially completed initialization.
     app.options = std::move(*options);
+    app.frameMilliseconds.reserve(static_cast<std::size_t>(std::min(app.options.frames, MostTimedFrames)));
     if (app.options.paused)
     {
         // Frozen at the start, with the range held, every run shows the same frame.
@@ -397,6 +457,7 @@ auto SDL_AppIterate(void* appstate) -> SDL_AppResult
 {
     auto& app = *static_cast<App*>(appstate);
     const auto now = SDL_GetTicksNS();
+    const auto interval = static_cast<double>(now - app.previousTicks) / NanosecondsPerMillisecond;
     auto elapsed = static_cast<double>(now - app.previousTicks) / NanosecondsPerSecond;
     app.previousTicks = now;
 
@@ -417,6 +478,12 @@ auto SDL_AppIterate(void* appstate) -> SDL_AppResult
         return SDL_APP_FAILURE;
     }
 
+    // From one frame to the next, for a run of a set length: the first follows start-up instead.
+    if (app.options.frames != 0 && app.renderedFrames > 0)
+    {
+        app.frameMilliseconds.push_back(interval);
+    }
+
     ++app.renderedFrames;
     CountFrame(app, now);
 
@@ -429,6 +496,8 @@ auto SDL_AppIterate(void* appstate) -> SDL_AppResult
     const auto seconds = static_cast<double>(SDL_GetTicksNS() - app.startTicks) / NanosecondsPerSecond;
     Log(SDL_LOG_PRIORITY_INFO, std::format("Painted {} frames in {:.2f} ms each, at {:.1f} frames per second", app.renderedFrames,
                                            app.paintMilliseconds / frames, frames / seconds));
+    Log(SDL_LOG_PRIORITY_INFO, std::format("Present {:.3f} ms per frame", app.presentMilliseconds / frames));
+    Log(SDL_LOG_PRIORITY_INFO, FrameTimes(app.frameMilliseconds));
     return SDL_APP_SUCCESS;
 }
 

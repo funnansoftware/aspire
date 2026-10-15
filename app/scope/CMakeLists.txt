@@ -30,13 +30,37 @@ target_sources(scope-mesh PUBLIC
 )
 target_link_libraries(scope-mesh PUBLIC scope-world)
 
+# A picture's shapes as triangles, for painters that draw triangles: this one, and scopegpu's.
+add_library(scope-tessellation STATIC)
+target_sources(scope-tessellation PUBLIC
+    FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        Tessellation.ixx
+)
+target_link_libraries(scope-tessellation PUBLIC scope-picture scope-mesh)
+
+# How the glow's drawn: the size of the textures it's blurred in, and the blur.
+add_library(scope-glow STATIC)
+target_sources(scope-glow PUBLIC
+    FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        Glow.ixx
+)
+target_link_libraries(scope-glow PUBLIC scope-mesh)
+
+# Draws a picture's text with SDL's renderer and SDL_ttf: this painter's, and scopegpu2d's.
+add_library(scope-typesetter STATIC)
+target_sources(scope-typesetter PUBLIC
+    FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        Typesetter.ixx
+)
+target_link_libraries(scope-typesetter PUBLIC scope-picture scope-mesh SDL3_ttf::SDL3_ttf SDL3::SDL3)
+
 # Draws the picture with SDL's renderer, and its text with SDL_ttf.
 add_library(scope-painter STATIC)
 target_sources(scope-painter PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
         Painter.ixx
 )
-target_link_libraries(scope-painter PUBLIC scope-picture scope-mesh SDL3_ttf::SDL3_ttf SDL3::SDL3)
+target_link_libraries(scope-painter PUBLIC scope-glow scope-tessellation scope-typesetter SDL3::SDL3)
 
 add_executable(scope main.cpp)
 target_link_libraries(scope PRIVATE scope-painter aspire-sdl SDL3::SDL3)
@@ -82,6 +106,9 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     add_executable(scope-mesh-test test/Mesh.test.cpp)
     target_link_libraries(scope-mesh-test PRIVATE scope-mesh GTest::gtest GTest::gtest_main)
     gtest_discover_tests(scope-mesh-test)
+    add_executable(scope-tessellation-test test/Tessellation.test.cpp)
+    target_link_libraries(scope-tessellation-test PRIVATE scope-tessellation GTest::gtest GTest::gtest_main)
+    gtest_discover_tests(scope-tessellation-test)
     add_test(NAME scope-smoke COMMAND scope --frames=3)
     set_tests_properties(scope-smoke PROPERTIES
         ENVIRONMENT "SDL_VIDEO_DRIVER=dummy;SDL_RENDER_DRIVER=software"
