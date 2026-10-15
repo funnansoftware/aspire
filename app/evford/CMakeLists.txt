@@ -2,7 +2,7 @@ if(ANDROID)
     message(FATAL_ERROR "Android builds are temporarily disabled pending NDK import std support.")
 endif()
 
-find_package(SDL3 3.2 CONFIG REQUIRED)
+find_package(SDL3 3.4 CONFIG REQUIRED)
 
 add_library(evford-world STATIC world.cpp)
 target_include_directories(evford-world PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

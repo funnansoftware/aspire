@@ -7,9 +7,10 @@ target_sources(${PROJECT_NAME} PUBLIC
         Event.ixx
         Module.ixx
         RenderBackend.ixx
+        Renderer.ixx
 )
 
-find_package(SDL3 3.2 CONFIG REQUIRED)
+find_package(SDL3 3.4 CONFIG REQUIRED)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     aspire-core

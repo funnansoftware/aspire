@@ -3,7 +3,7 @@ if(ANDROID)
     return()
 endif()
 
-find_package(SDL3 3.2 CONFIG REQUIRED)
+find_package(SDL3 3.4 CONFIG REQUIRED)
 
 # The game's own code, as a library so the tests can link it.
 add_library(srd-lite-game STATIC)

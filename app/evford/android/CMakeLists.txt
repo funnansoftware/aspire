@@ -18,7 +18,7 @@ set(SDL3_DIR "${EVFORD_VCPKG_INSTALLED_DIR}/${_sdl_triplet}/${_sdl_triplet}/shar
 # AGP uses RelWithDebInfo for release APKs; vcpkg installs Debug and Release.
 set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
 set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL Release)
-find_package(SDL3 3.2 CONFIG REQUIRED COMPONENTS SDL3-shared Jar
+find_package(SDL3 3.4 CONFIG REQUIRED COMPONENTS SDL3-shared Jar
     PATHS "${SDL3_DIR}" NO_DEFAULT_PATH)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/.." evford)

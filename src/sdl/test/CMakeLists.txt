@@ -5,6 +5,7 @@ add_executable(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE
     Event.test.cpp
     RenderBackend.test.cpp
+    Renderer.test.cpp
 )
 
 enable_testing()

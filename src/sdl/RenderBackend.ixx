@@ -12,6 +12,8 @@ export namespace aspire::sdl
 {
     /// @brief Draws `aspire.graphics` frames with an SDL renderer.
     ///
+    /// Any renderer works. For a window, `CreateRenderer()` picks SDL's GPU renderer where it's supported.
+    ///
     /// Textures are loaded from `.png` and `.bmp` files the first time a sprite names them, and kept until the
     /// backend is destroyed. A texture that fails to load is logged once and its sprites draw nothing.
     class RenderBackend : public aspire::graphics::RenderBackend

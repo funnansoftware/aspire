@@ -161,11 +161,18 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     {
         return Fail("Initialize SDL video");
     }
-    if (!SDL_CreateWindowAndRenderer("Not D&D Like", WindowWidth, WindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &app.window,
-                                     &app.renderer))
+    app.window = SDL_CreateWindow("Not D&D Like", WindowWidth, WindowHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    if (app.window == nullptr)
     {
-        return Fail("Create window and renderer");
+        return Fail("Create window");
     }
+    // SDL's GPU renderer where the platform has one, otherwise SDL's default.
+    app.renderer = aspire::sdl::CreateRenderer(app.window);
+    if (app.renderer == nullptr)
+    {
+        return Fail("Create renderer");
+    }
+    Log(SDL_LOG_PRIORITY_INFO, std::format("Renderer: {}", SDL_GetRendererName(app.renderer)));
     if (!SDL_SetRenderLogicalPresentation(app.renderer, CanvasWidth, CanvasHeight, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE))
     {
         return Fail("Set logical presentation");
