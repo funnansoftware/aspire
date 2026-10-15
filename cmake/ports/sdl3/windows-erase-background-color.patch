@@ -1,0 +1,97 @@
+diff --git a/include/SDL3/SDL_hints.h b/include/SDL3/SDL_hints.h
+index a38abf0..9da167b 100644
+--- a/include/SDL3/SDL_hints.h
++++ b/include/SDL3/SDL_hints.h
+@@ -4716,6 +4716,21 @@ extern "C" {
+  */
+ #define SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE "SDL_WINDOWS_ERASE_BACKGROUND_MODE"
+ 
++/**
++ * A variable setting the color SDL clears the window contents to when the
++ * WM_ERASEBKGND message is received, as SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE
++ * says.
++ *
++ * It's six hexadecimal digits, "RRGGBB", optionally after a "#". It shows
++ * wherever the window's frames don't cover it, as for a composition while the
++ * window's dragged to a new size, so an app can have it match what it clears
++ * its frames to. Unset or invalid, it's black.
++ *
++ * This hint should be set before creating a window. It's not in SDL itself:
++ * it comes with aspire's patch to SDL.
++ */
++#define SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR "SDL_WINDOWS_ERASE_BACKGROUND_COLOR"
++
+ /**
+  * A variable controlling whether X11 windows are marked as override-redirect.
+  *
+diff --git a/src/video/windows/SDL_windowsevents.c b/src/video/windows/SDL_windowsevents.c
+index ec72e8d..9332abe 100644
+--- a/src/video/windows/SDL_windowsevents.c
++++ b/src/video/windows/SDL_windowsevents.c
+@@ -2197,7 +2197,7 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+             HBRUSH brush;
+             data->videodata->cleared = true;
+             GetClientRect(hwnd, &client_rect);
+-            brush = CreateSolidBrush(0);
++            brush = CreateSolidBrush(data->erase_background_color);
+             FillRect(GetDC(hwnd), &client_rect, brush);
+             DeleteObject(brush);
+         }
+diff --git a/src/video/windows/SDL_windowswindow.c b/src/video/windows/SDL_windowswindow.c
+index b6a4251..bb92778 100644
+--- a/src/video/windows/SDL_windowswindow.c
++++ b/src/video/windows/SDL_windowswindow.c
+@@ -368,6 +368,32 @@ static SDL_WindowEraseBackgroundMode GetEraseBackgroundModeHint(void)
+     return (SDL_WindowEraseBackgroundMode)mode;
+ }
+ 
++// The color the window's erased to, "RRGGBB" with or without a "#" before it; black unless it's set.
++static COLORREF GetEraseBackgroundColorHint(void)
++{
++    const char *hint = SDL_GetHint(SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR);
++    unsigned long rgb;
++
++    if (!hint || !*hint) {
++        return RGB(0, 0, 0);
++    }
++    if (*hint == '#') {
++        ++hint;
++    }
++    for (int i = 0; i < 6; ++i) {
++        if (!SDL_isxdigit((unsigned char)hint[i])) {
++            SDL_Log("GetEraseBackgroundColorHint: invalid value for SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR. Fallback to black");
++            return RGB(0, 0, 0);
++        }
++    }
++    if (hint[6] != '\0') {
++        SDL_Log("GetEraseBackgroundColorHint: invalid value for SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR. Fallback to black");
++        return RGB(0, 0, 0);
++    }
++    rgb = SDL_strtoul(hint, NULL, 16);
++    return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
++}
++
+ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, HWND hwnd, HWND parent)
+ {
+     SDL_VideoData *videodata = _this->internal;
+@@ -392,6 +418,7 @@ static bool SetupWindowData(SDL_VideoDevice *_this, SDL_Window *window, HWND hwn
+     data->videodata = videodata;
+     data->initializing = true;
+     data->hint_erase_background_mode = GetEraseBackgroundModeHint();
++    data->erase_background_color = GetEraseBackgroundColorHint();
+ 
+ 
+     // WIN_WarpCursor() jitters by +1, and remote desktop warp wobble is +/- 1
+diff --git a/src/video/windows/SDL_windowswindow.h b/src/video/windows/SDL_windowswindow.h
+index 38d64f4..5f16f8b 100644
+--- a/src/video/windows/SDL_windowswindow.h
++++ b/src/video/windows/SDL_windowswindow.h
+@@ -96,6 +96,8 @@ struct SDL_WindowData
+     bool destroy_parent_with_window;
+     WCHAR *ICMFileName;
+     SDL_WindowEraseBackgroundMode hint_erase_background_mode;
++    // What the window's erased to, from SDL_WINDOWS_ERASE_BACKGROUND_COLOR; black unless it's set.
++    COLORREF erase_background_color;
+     bool taskbar_button_created;
+     struct SDL_VideoData *videodata;
+ #ifdef SDL_VIDEO_OPENGL_EGL

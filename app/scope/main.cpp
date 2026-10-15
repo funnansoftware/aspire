@@ -386,6 +386,14 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     // pace frames with timers, so it's left to the browser's animation frames, which follow the display.
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, app.options.benchmark ? "0" : "60");
 #endif
+#ifdef SDL_PLATFORM_WINDOWS
+    // The window's own background can show along an edge for a composition while it's dragged smaller, so it's the
+    // scope's background rather than black, on every erase: erased only the first time, the parts the window later
+    // grows into stay black. The color hint comes with the repo's SDL patches.
+    const auto& background = scope::BackgroundColor;
+    SDL_SetHint(SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR, std::format("#{:02X}{:02X}{:02X}", background.r, background.g, background.b).c_str());
+    SDL_SetHint(SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE, "always");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         return Fail("Initialize SDL video");

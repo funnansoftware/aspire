@@ -15,8 +15,19 @@ vcpkg_from_github(
         # each, and on D3D12 that made each frame of a window being resized take tens of milliseconds.
         fix-gpu-render-uploads.patch
         # aspire: on Windows, a window being dragged to a new size draws a frame for each size as it's taken, rather
-        # than only when the modal loop's timer gets round to it.
+        # than only when the modal loop's timer gets round to it. Each is drawn after SetWindowPos returns and the
+        # compositor's next composition, so the window's new size has usually reached the compositor first. Drawn
+        # inside SetWindowPos, a frame for a smaller size often got there first, and the window's background, black,
+        # showed along the edge it shrank from: the right or bottom when it was dragged from the left or the top. It
+        # waits with DwmFlush, which SDL took out of the modal loop's timer after it locked up the compositor under
+        # Steam. Here it's called for each size the window's dragged to, about once a composition while it's dragged,
+        # and SDL_WINDOWS_LIVE_RESIZE_DWMFLUSH=0 turns it off.
         fix-windows-live-resize.patch
+        # aspire: on Windows, SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR sets the color SDL erases a window to, rather
+        # than black, as SDL_HINT_WINDOWS_ERASE_BACKGROUND_MODE says when. It shows wherever the window's frames don't
+        # cover it, as for the rare frame that still reaches the compositor before a window's new size, so an app can
+        # have it match what it clears its frames to.
+        windows-erase-background-color.patch
         # aspire: D3D12 swapchains stretch a frame shown in a window of another size, rather than pinning it to the
         # top left. While a window's dragged from its left edge, a frame and the window's new size sometimes reach
         # the compositor apart, and pinned, what's along the right edge jumped by the whole step.

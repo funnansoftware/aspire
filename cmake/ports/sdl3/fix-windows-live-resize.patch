@@ -1,11 +1,12 @@
 diff --git a/src/video/windows/SDL_windowsevents.c b/src/video/windows/SDL_windowsevents.c
-index ae69f98..6f1b2e6 100644
+index ae69f98..ec72e8d 100644
 --- a/src/video/windows/SDL_windowsevents.c
 +++ b/src/video/windows/SDL_windowsevents.c
-@@ -1158,6 +1158,18 @@ static bool DispatchModalLoopMessageHook(HWND *hwnd, UINT *msg, WPARAM *wParam,
+@@ -1158,6 +1158,39 @@ static bool DispatchModalLoopMessageHook(HWND *hwnd, UINT *msg, WPARAM *wParam,
      return false;
  }
  
++#if !defined(SDL_PLATFORM_XBOXONE) && !defined(SDL_PLATFORM_XBOXSERIES)
 +// Whether the app's drawing a frame for a window being moved or resized, so a window change it makes doesn't ask again.
 +static bool WIN_in_live_resize_update = false;
 +
@@ -18,10 +19,53 @@ index ae69f98..6f1b2e6 100644
 +    }
 +}
 +
++// Whether a window being resized has asked for a frame at its new size, which it draws when the message arrives.
++static bool WIN_live_resize_posted = false;
++
++// The message a window being resized posts itself, to draw a frame at its new size once the compositor has it.
++static UINT WIN_LiveResizeMessage(void)
++{
++    static UINT message = 0;
++
++    if (!message) {
++        message = RegisterWindowMessage(TEXT("SDL_LiveResizeUpdate"));
++    }
++    return message;
++}
++
++/* Whether the frame waits for the compositor's next composition, so it has the window's new size and place first.
++ * SDL took DwmFlush out of the modal loop's timer after it locked up the compositor under Steam; this hint, true by
++ * default, turns it off here too, should that happen. */
++#define SDL_HINT_WINDOWS_LIVE_RESIZE_DWMFLUSH "SDL_WINDOWS_LIVE_RESIZE_DWMFLUSH"
++#endif
++
  LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
  {
      SDL_WindowData *data;
-@@ -1811,6 +1823,8 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+@@ -1188,6 +1221,22 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+ #endif // WMMSG_DEBUG
+ 
+ 
++#if !defined(SDL_PLATFORM_XBOXONE) && !defined(SDL_PLATFORM_XBOXSERIES)
++    // SDL's own message, so the app's message hook never sees or drops it, which would stop the frames it asks for.
++    if (msg == WIN_LiveResizeMessage() && msg != 0) {
++        WIN_live_resize_posted = false;
++        if (data->in_modal_loop && !WIN_in_live_resize_update) {
++            /* The compositor shows the window's new size and place from its next composition, not as SetWindowPos
++             * returns, so the frame waits for it. Drawn sooner, it was still shown first about one time in three. */
++            if (data->videodata->DwmFlush && SDL_GetHintBoolean(SDL_HINT_WINDOWS_LIVE_RESIZE_DWMFLUSH, true)) {
++                data->videodata->DwmFlush();
++            }
++            WIN_LiveResizeUpdate(data->window);
++        }
++        return 0;
++    }
++#endif
++
+     if (g_WindowsMessageHook && data->in_modal_loop) {
+         // Synthesize a message for window hooks so they can modify the message if desired
+         if (!DispatchModalLoopMessageHook(&hwnd, &msg, &wParam, &lParam)) {
+@@ -1811,6 +1860,8 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
          RECT rect;
          int x, y;
          int w, h;
@@ -30,33 +74,61 @@ index ae69f98..6f1b2e6 100644
  
          if (windowpos->flags & SWP_SHOWWINDOW) {
              SDL_SendWindowEvent(data->window, SDL_EVENT_WINDOW_SHOWN, 0, 0);
-@@ -1872,7 +1886,11 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
-                 w = rect.right;
-                 h = rect.bottom;
- 
-+                // The window's pixel size as SDL last sent it, which sending the new size updates if it's changed.
-+                pixel_w = data->window->last_pixel_w;
-+                pixel_h = data->window->last_pixel_h;
-                 SDL_SendWindowEvent(data->window, SDL_EVENT_WINDOW_RESIZED, w, h);
-+                pixel_size_changed = data->window->last_pixel_w != pixel_w || data->window->last_pixel_h != pixel_h;
-             }
+@@ -1856,6 +1907,11 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
          }
  
-@@ -1892,6 +1910,13 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+         if (!data->disable_move_size_events) {
++            /* The window's pixel size as SDL last sent it. Sending the new place can send the new size too, when it
++             * moves the window to another display, so it's taken first. */
++            pixel_w = data->window->last_pixel_w;
++            pixel_h = data->window->last_pixel_h;
++
+             if (GetClientRect(hwnd, &rect) && WIN_WindowRectValid(&rect)) {
+                 ClientToScreen(hwnd, (LPPOINT) &rect);
+                 ClientToScreen(hwnd, (LPPOINT) &rect + 1);
+@@ -1874,6 +1930,8 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+ 
+                 SDL_SendWindowEvent(data->window, SDL_EVENT_WINDOW_RESIZED, w, h);
+             }
++
++            pixel_size_changed = data->window->last_pixel_w != pixel_w || data->window->last_pixel_h != pixel_h;
+         }
+ 
+         WIN_UpdateClipCursor(data->window);
+@@ -1892,6 +1950,22 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
              }
          }
  
 +        /* While the window's dragged to a new size, the app draws a frame for each size it takes, as it's taken.
 +         * The timer alone draws them at its own pace, low priority to the mouse, while the compositor shows the
-+         * last frame at the window's new size and place, so it jumps until the next. */
-+        if (pixel_size_changed && data->in_modal_loop && !data->expected_resize) {
-+            WIN_LiveResizeUpdate(data->window);
++         * last frame at the window's new size and place, so it jumps until the next.
++         *
++         * It isn't drawn here, though, inside SetWindowPos, before the compositor has the window's new size and
++         * place. A frame for a smaller size that reaches it first is shown for a composition inside the window at
++         * its old size and place, with the window's own background showing where the frame doesn't reach, along
++         * the edge it's shrinking from: very visibly so when that's the right or bottom edge while the left or the
++         * top is dragged. Posted, the frame's drawn once SetWindowPos has returned, after the compositor's next
++         * composition, before the size loop takes the mouse's next move. Usually that's after the compositor has
++         * the change; a frame that still gets there first shows the window's background, which
++         * SDL_HINT_WINDOWS_ERASE_BACKGROUND_COLOR lets the app match to its own. */
++        if (pixel_size_changed && data->in_modal_loop && !data->expected_resize && !WIN_live_resize_posted) {
++            WIN_live_resize_posted = PostMessage(hwnd, WIN_LiveResizeMessage(), 0, 0) != 0;
 +        }
 +
      } break;
  
      case WM_ENTERSIZEMOVE:
-@@ -1926,7 +1951,7 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+@@ -1918,6 +1992,9 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
+ 
+             SetTimer(hwnd, (UINT_PTR)SDL_IterateMainCallbacks, USER_TIMER_MINIMUM, NULL);
+ 
++            // A frame asked for in a size loop that ended before it arrived can't hold up this one's.
++            WIN_live_resize_posted = false;
++
+             // Reset the keyboard, as we won't get any key up events during the modal loop
+             SDL_ResetKeyboard();
+         }
+@@ -1926,7 +2003,7 @@ LRESULT CALLBACK WIN_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
      case WM_TIMER:
      {
          if (wParam == (UINT_PTR)SDL_IterateMainCallbacks) {
