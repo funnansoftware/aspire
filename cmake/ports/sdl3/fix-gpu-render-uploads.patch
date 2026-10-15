@@ -1,0 +1,241 @@
+diff --git a/src/render/gpu/SDL_render_gpu.c b/src/render/gpu/SDL_render_gpu.c
+index eb9465e..6661997 100644
+--- a/src/render/gpu/SDL_render_gpu.c
++++ b/src/render/gpu/SDL_render_gpu.c
+@@ -108,8 +108,21 @@ typedef struct GPU_RenderData
+         SDL_GPUTransferBuffer *transfer_buf;
+         SDL_GPUBuffer *buffer;
+         Uint32 buffer_size;
++        // Each upload of vertices goes after the last, from base, and the buffers are cycled when they're full.
++        Uint32 used;
++        Uint32 base;
+     } vertices;
+ 
++    /* Texture updates are copied through one transfer buffer, a piece of it each, rather than one created for every
++     * update. The pieces start and their rows are laid out as D3D12 copies from, so it needn't make a buffer of its
++     * own to realign them. */
++    struct
++    {
++        SDL_GPUTransferBuffer *transfer_buf;
++        Uint32 size;
++        Uint32 used;
++    } uploads;
++
+     struct
+     {
+         SDL_GPURenderPass *render_pass;
+@@ -433,45 +446,92 @@ static bool GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_
+     return true;
+ }
+ 
+-static bool GPU_UpdateTextureInternal(GPU_RenderData *renderdata, SDL_GPUCopyPass *cpass, SDL_GPUTexture *texture, int bpp, int x, int y, int w, int h, const void *pixels, int pitch)
++// D3D12 copies to a texture from rows that start every 256 bytes, and from data that starts on 512.
++#define GPU_UPLOAD_ROW_ALIGNMENT       256
++#define GPU_UPLOAD_PLACEMENT_ALIGNMENT 512
++#define GPU_UPLOAD_MIN_SIZE            (1024 * 1024)
++
++static Uint32 GPU_AlignUpload(Uint32 value, Uint32 alignment)
+ {
+-    size_t row_size, data_size;
+-    if (!SDL_size_mul_check_overflow(w, bpp, &row_size) ||
+-        !SDL_size_mul_check_overflow(h, row_size, &data_size)) {
+-        return SDL_SetError("update size overflow");
++    return (value + alignment - 1) / alignment * alignment;
++}
++
++/* Finds room for an upload in the renderer's upload buffer, and maps it. Uploads go one after another in it. When
++ * it's full, it starts again from the beginning: cycled, so the uploads still waiting to be copied keep the data
++ * they had. It's only made again when an upload's bigger than all of it. */
++static Uint8 *GPU_MapUpload(GPU_RenderData *renderdata, Uint32 size, Uint32 *offset)
++{
++    Uint32 start = GPU_AlignUpload(renderdata->uploads.used, GPU_UPLOAD_PLACEMENT_ALIGNMENT);
++    bool cycle = false;
++
++    if (size > renderdata->uploads.size) {
++        Uint32 capacity = SDL_max(renderdata->uploads.size, GPU_UPLOAD_MIN_SIZE);
++        while (capacity < size) {
++            capacity *= 2;
++        }
++
++        SDL_GPUTransferBufferCreateInfo tbci;
++        SDL_zero(tbci);
++        tbci.size = capacity;
++        tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
++
++        SDL_GPUTransferBuffer *tbuf = SDL_CreateGPUTransferBuffer(renderdata->device, &tbci);
++        if (!tbuf) {
++            return NULL;
++        }
++
++        if (renderdata->uploads.transfer_buf) {
++            SDL_ReleaseGPUTransferBuffer(renderdata->device, renderdata->uploads.transfer_buf);
++        }
++
++        renderdata->uploads.transfer_buf = tbuf;
++        renderdata->uploads.size = capacity;
++        start = 0;
++    } else if (start > renderdata->uploads.size - size) {
++        start = 0;
++        cycle = true;
+     }
+ 
+-    SDL_GPUTransferBufferCreateInfo tbci;
+-    SDL_zero(tbci);
+-    tbci.size = (Uint32)data_size;
+-    tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
++    Uint8 *output = SDL_MapGPUTransferBuffer(renderdata->device, renderdata->uploads.transfer_buf, cycle);
++    if (!output) {
++        return NULL;
++    }
+ 
+-    SDL_GPUTransferBuffer *tbuf = SDL_CreateGPUTransferBuffer(renderdata->device, &tbci);
+-    if (tbuf == NULL) {
+-        return false;
++    renderdata->uploads.used = start + size;
++    *offset = start;
++    return output + start;
++}
++
++static bool GPU_UpdateTextureInternal(GPU_RenderData *renderdata, SDL_GPUCopyPass *cpass, SDL_GPUTexture *texture, int bpp, int x, int y, int w, int h, const void *pixels, int pitch)
++{
++    size_t row_size, aligned_row_size, data_size;
++    if (!SDL_size_mul_check_overflow(w, bpp, &row_size) ||
++        !SDL_size_add_check_overflow(row_size, GPU_UPLOAD_ROW_ALIGNMENT - 1, &aligned_row_size) ||
++        !SDL_size_mul_check_overflow(h, aligned_row_size / GPU_UPLOAD_ROW_ALIGNMENT * GPU_UPLOAD_ROW_ALIGNMENT, &data_size) ||
++        data_size > SDL_MAX_UINT32 / 2) {
++        return SDL_SetError("update size overflow");
+     }
++    aligned_row_size = aligned_row_size / GPU_UPLOAD_ROW_ALIGNMENT * GPU_UPLOAD_ROW_ALIGNMENT;
+ 
+-    Uint8 *output = SDL_MapGPUTransferBuffer(renderdata->device, tbuf, false);
++    Uint32 offset = 0;
++    Uint8 *output = GPU_MapUpload(renderdata, (Uint32)data_size, &offset);
+     if (!output) {
+         return false;
+     }
+-    if ((size_t)pitch == row_size) {
+-        SDL_memcpy(output, pixels, data_size);
+-    } else {
+-        const Uint8 *input = pixels;
+-        for (int i = 0; i < h; ++i) {
+-            SDL_memcpy(output, input, row_size);
+-            output += row_size;
+-            input += pitch;
+-        }
++    const Uint8 *input = pixels;
++    for (int i = 0; i < h; ++i) {
++        SDL_memcpy(output, input, row_size);
++        output += aligned_row_size;
++        input += pitch;
+     }
+-    SDL_UnmapGPUTransferBuffer(renderdata->device, tbuf);
++    SDL_UnmapGPUTransferBuffer(renderdata->device, renderdata->uploads.transfer_buf);
+ 
+     SDL_GPUTextureTransferInfo tex_src;
+     SDL_zero(tex_src);
+-    tex_src.transfer_buffer = tbuf;
++    tex_src.transfer_buffer = renderdata->uploads.transfer_buf;
++    tex_src.offset = offset;
+     tex_src.rows_per_layer = h;
+-    tex_src.pixels_per_row = w;
++    tex_src.pixels_per_row = (Uint32)(aligned_row_size / bpp);
+ 
+     SDL_GPUTextureRegion tex_dst;
+     SDL_zero(tex_dst);
+@@ -483,7 +543,6 @@ static bool GPU_UpdateTextureInternal(GPU_RenderData *renderdata, SDL_GPUCopyPas
+     tex_dst.d = 1;
+ 
+     SDL_UploadToGPUTexture(cpass, &tex_src, &tex_dst, false);
+-    SDL_ReleaseGPUTransferBuffer(renderdata->device, tbuf);
+ 
+     return true;
+ }
+@@ -1067,7 +1126,7 @@ static void Draw(
+     SDL_GPUBufferBinding buffer_bind;
+     SDL_zero(buffer_bind);
+     buffer_bind.buffer = data->vertices.buffer;
+-    buffer_bind.offset = offset;
++    buffer_bind.offset = data->vertices.base + offset;
+     SDL_BindGPUVertexBuffers(pass, 0, &buffer_bind, 1);
+     PushVertexUniforms(data, cmd);
+ 
+@@ -1087,6 +1146,8 @@ static void ReleaseVertexBuffer(GPU_RenderData *data)
+     }
+ 
+     data->vertices.buffer_size = 0;
++    data->vertices.used = 0;
++    data->vertices.base = 0;
+ }
+ 
+ static bool InitVertexBuffer(GPU_RenderData *data, Uint32 size)
+@@ -1124,15 +1185,35 @@ static bool UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize
+         return true;
+     }
+ 
++    /* The vertices go after the last ones uploaded, rather than cycling the buffers for every upload: a frame can
++     * upload many times, such as text that draws a glyph at a time, and each cycle that finds the buffers in use
++     * makes new ones. */
++    Uint32 start = GPU_AlignUpload(data->vertices.used, GPU_UPLOAD_PLACEMENT_ALIGNMENT);
++    bool cycle = false;
++
+     if (vertsize > data->vertices.buffer_size) {
++        if (vertsize > SDL_MAX_UINT32 / 2) {
++            return SDL_SetError("vertex data too large");
++        }
++        Uint32 capacity = SDL_max(data->vertices.buffer_size, GPU_UPLOAD_MIN_SIZE);
++        while (capacity < vertsize) {
++            capacity *= 2;
++        }
+         ReleaseVertexBuffer(data);
+-        if (!InitVertexBuffer(data, (Uint32)vertsize)) {
++        if (!InitVertexBuffer(data, capacity)) {
+             return false;
+         }
++        start = 0;
++    } else if (start > data->vertices.buffer_size - vertsize) {
++        start = 0;
++        cycle = true;
+     }
+ 
+-    void *staging_buf = SDL_MapGPUTransferBuffer(data->device, data->vertices.transfer_buf, true);
+-    SDL_memcpy(staging_buf, vertices, vertsize);
++    Uint8 *staging_buf = SDL_MapGPUTransferBuffer(data->device, data->vertices.transfer_buf, cycle);
++    if (!staging_buf) {
++        return false;
++    }
++    SDL_memcpy(staging_buf + start, vertices, vertsize);
+     SDL_UnmapGPUTransferBuffer(data->device, data->vertices.transfer_buf);
+ 
+     SDL_GPUCopyPass *pass = SDL_BeginGPUCopyPass(data->state.command_buffer);
+@@ -1144,15 +1225,20 @@ static bool UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize
+     SDL_GPUTransferBufferLocation src;
+     SDL_zero(src);
+     src.transfer_buffer = data->vertices.transfer_buf;
++    src.offset = start;
+ 
+     SDL_GPUBufferRegion dst;
+     SDL_zero(dst);
+     dst.buffer = data->vertices.buffer;
++    dst.offset = start;
+     dst.size = (Uint32)vertsize;
+ 
+-    SDL_UploadToGPUBuffer(pass, &src, &dst, true);
++    SDL_UploadToGPUBuffer(pass, &src, &dst, cycle);
+     SDL_EndGPUCopyPass(pass);
+ 
++    data->vertices.base = start;
++    data->vertices.used = start + (Uint32)vertsize;
++
+     return true;
+ }
+ 
+@@ -1606,6 +1692,9 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
+     }
+ 
+     ReleaseVertexBuffer(data);
++    if (data->uploads.transfer_buf) {
++        SDL_ReleaseGPUTransferBuffer(data->device, data->uploads.transfer_buf);
++    }
+     GPU_DestroyPipelineCache(&data->pipeline_cache);
+ 
+     if (data->device) {

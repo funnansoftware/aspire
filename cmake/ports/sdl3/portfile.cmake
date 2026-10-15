@@ -9,6 +9,18 @@ vcpkg_from_github(
         # aspire: the GPU renderer resizes its backbuffer when the window's pixel size changes, rather than at the
         # next present, so frames drawn while a window's being resized aren't shown at the wrong scale.
         fix-gpu-backbuffer-resize.patch
+        # aspire: the GPU renderer uploads texture updates and vertices one after another through buffers it keeps,
+        # with texture rows laid out as D3D12 copies from, rather than making buffers for each update and cycling
+        # them for each batch of vertices. Text that's resized redraws its glyphs, uploading and flushing once for
+        # each, and on D3D12 that made each frame of a window being resized take tens of milliseconds.
+        fix-gpu-render-uploads.patch
+        # aspire: on Windows, a window being dragged to a new size draws a frame for each size as it's taken, rather
+        # than only when the modal loop's timer gets round to it.
+        fix-windows-live-resize.patch
+        # aspire: D3D12 swapchains stretch a frame shown in a window of another size, rather than pinning it to the
+        # top left. While a window's dragged from its left edge, a frame and the window's new size sometimes reach
+        # the compositor apart, and pinned, what's along the right edge jumped by the whole step.
+        fix-d3d12-swapchain-stretch.patch
 )
 
 string(COMPARE EQUAL "${VCPKG_LIBRARY_LINKAGE}" "static" SDL_STATIC)

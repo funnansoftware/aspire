@@ -1,0 +1,17 @@
+diff --git a/src/gpu/d3d12/SDL_gpu_d3d12.c b/src/gpu/d3d12/SDL_gpu_d3d12.c
+index 43015c8..602080a 100644
+--- a/src/gpu/d3d12/SDL_gpu_d3d12.c
++++ b/src/gpu/d3d12/SDL_gpu_d3d12.c
+@@ -7013,7 +7013,11 @@ static bool D3D12_INTERNAL_CreateSwapchain(
+     swapchainDesc.SampleDesc.Quality = 0;
+     swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+     swapchainDesc.BufferCount = windowData->swapchainTextureCount;
+-    swapchainDesc.Scaling = DXGI_SCALING_NONE;
++    /* A window's new size and its swapchain's next frame reach the compositor separately, so while the window's
++     * dragged to a new size, a frame is sometimes shown in a window of another size. Stretched, it's off by a
++     * fraction of the size change; unscaled, it's pinned to the top left, and what's along the right or bottom
++     * edge jumps by all of it. */
++    swapchainDesc.Scaling = DXGI_SCALING_STRETCH;
+     swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+     swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+     swapchainDesc.Flags = 0;
