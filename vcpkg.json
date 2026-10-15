@@ -25,7 +25,14 @@
         },
         "gtest",
         "nameof",
-        "nlohmann-json"
+        "nlohmann-json",
+        {
+            "name": "sdl3-ttf",
+            "features": [
+                "harfbuzz"
+            ],
+            "platform": "!android"
+        }
     ],
     "default-features": [
         "ibus"

@@ -156,7 +156,11 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     *appstate = state.release(); // SDL_AppQuit also runs after partially completed initialization.
     app.frameLimit = frameLimit;
     SDL_SetAppMetadata("srd-lite", "0.1.0", "org.aspire.srd-lite");
+#ifndef SDL_PLATFORM_EMSCRIPTEN
+    // On the web, any rate makes SDL pace frames with timers, so it's left to the browser's animation frames, which
+    // follow the display.
     SDL_SetHint(SDL_HINT_MAIN_CALLBACK_RATE, "60");
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         return Fail("Initialize SDL video");

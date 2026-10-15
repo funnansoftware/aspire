@@ -1,0 +1,33 @@
+diff --git a/src/render/gpu/SDL_render_gpu.c b/src/render/gpu/SDL_render_gpu.c
+index f8ab103..eb9465e 100644
+--- a/src/render/gpu/SDL_render_gpu.c
++++ b/src/render/gpu/SDL_render_gpu.c
+@@ -1470,6 +1470,20 @@ static bool CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GPUTe
+     return true;
+ }
+ 
++static void GPU_WindowEvent(SDL_Renderer *renderer, const SDL_WindowEvent *event)
++{
++    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
++
++    /* The renderer's output takes the window's new size at once, so the backbuffer does too. Otherwise the next
++     * frame is laid out for the new size, drawn into a backbuffer the old size, and stretched to the window, and
++     * while the window's dragged to a new size every frame is shown at the wrong scale. Presenting still makes the
++     * backbuffer the swapchain's size, if that's different. */
++    if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED && data->backbuffer.texture && event->data1 > 0 && event->data2 > 0 &&
++        ((Uint32)event->data1 != data->backbuffer.width || (Uint32)event->data2 != data->backbuffer.height)) {
++        CreateBackbuffer(data, (Uint32)event->data1, (Uint32)event->data2, data->backbuffer.format);
++    }
++}
++
+ static bool GPU_RenderPresent(SDL_Renderer *renderer)
+ {
+     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
+@@ -1710,6 +1724,7 @@ static bool GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_P
+     renderer->DestroyTexture = GPU_DestroyTexture;
+     renderer->DestroyRenderer = GPU_DestroyRenderer;
+     renderer->SetVSync = GPU_SetVSync;
++    renderer->WindowEvent = GPU_WindowEvent;
+     renderer->internal = data;
+     renderer->window = window;
+     renderer->name = GPU_RenderDriver.name;
