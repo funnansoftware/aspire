@@ -152,7 +152,7 @@ namespace
 
 TEST(GaussianTaps, KeepTheBrightnessAndAreSymmetric)
 {
-    for (const auto [sigma, reach] : {std::pair{0.8F, 3.0F}, std::pair{3.0F, 2.0F}, std::pair{7.5F, 3.0F}})
+    for (const auto& [sigma, reach] : {std::pair{0.8F, 3.0F}, std::pair{3.0F, 2.0F}, std::pair{7.5F, 3.0F}})
     {
         const auto taps = scope::GaussianTaps(sigma, reach);
         EXPECT_NEAR(std::ranges::fold_left(taps | std::views::transform(&scope::Tap::weight), 0.0F, std::plus{}), 1.0F, Tolerance) << sigma;

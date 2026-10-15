@@ -285,22 +285,24 @@ namespace scope
             return std::format("{:g}", std::round(nm * Tenths) / Tenths);
         }
 
+        // Items are made in place from what they hold. Moved in from a temporary Item, GCC can't tell which
+        // alternative it holds, and warns that a shape's members may be used uninitialized.
         auto AddShape(Group& group, Shape x) -> void
         {
-            group.items.emplace_back(Item{std::move(x)});
+            group.items.emplace_back(std::move(x));
         }
 
         auto AddText(Group& group, const Frame& frame, Text x) -> void
         {
             if (frame.text)
             {
-                group.items.emplace_back(Item{std::move(x)});
+                group.items.emplace_back(std::move(x));
             }
         }
 
         auto AddGroup(Group& group, Group x) -> void
         {
-            group.items.emplace_back(Item{std::move(x)});
+            group.items.emplace_back(std::move(x));
         }
 
         auto Line(Vec2 from, Vec2 to, Pen pen) -> Shape
@@ -513,7 +515,7 @@ namespace scope
                     {.text = "SCOPE", .at = {.x = Margin, .y = Margin}, .size = TitleSize, .color = TitleColor, .anchor = TopLeft, .opacity = 1.0F});
             AddText(group, frame, Readout(std::string{view.caption}, {.x = Margin, .y = Margin + SubtitleTop}, FurnitureColor, TopLeft));
             group.items.emplace_back(
-                Item{Rule{.from = {.x = Margin, .y = Margin + RuleTop}, .length = RuleLength, .width = LineWidth, .color = FurnitureColor}});
+                Rule{.from = {.x = Margin, .y = Margin + RuleTop}, .length = RuleLength, .width = LineWidth, .color = FurnitureColor});
 
             AddText(group, frame, Readout("RANGE", {.x = right, .y = Margin}, FurnitureColor, TopRight));
             AddText(group, frame,
@@ -604,13 +606,13 @@ export namespace scope
 
         Picture picture{.scale = scale, .root = {}};
         auto& root = picture.root;
-        root.items.emplace_back(Item{Backdrop{.corner = {.x = -Bleed, .y = -Bleed},
-                                              .width = width + Bleed + Bleed,
-                                              .height = height + Bleed + Bleed,
-                                              .center = frame.center,
-                                              .radius = OuterRadius * GlassReach,
-                                              .inner = GlassColor,
-                                              .outer = BackgroundColor}});
+        root.items.emplace_back(Backdrop{.corner = {.x = -Bleed, .y = -Bleed},
+                                         .width = width + Bleed + Bleed,
+                                         .height = height + Bleed + Bleed,
+                                         .center = frame.center,
+                                         .radius = OuterRadius * GlassReach,
+                                         .inner = GlassColor,
+                                         .outer = BackgroundColor});
 
         Group display;
         AddCompass(display, frame);
