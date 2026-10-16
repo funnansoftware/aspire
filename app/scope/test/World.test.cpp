@@ -56,6 +56,21 @@ namespace
         const auto found = std::ranges::find_if(rings, [nm](const auto& x) { return std::abs(x.nm - nm) < Tolerance; });
         return found == std::end(rings) ? std::nullopt : std::optional{found->opacity};
     }
+
+    // Everything about some tracks, exactly, and where they are at the start, so two sets can be compared whole.
+    auto Describe(const std::vector<scope::Track>& tracks) -> std::vector<std::string>
+    {
+        std::vector<std::string> described;
+
+        for (const auto& track : tracks)
+        {
+            const auto state = scope::Sample(track.route, scope::StartSeconds);
+            described.push_back(std::format("{} {} {} {} {:a} {:a} {:a}", track.callsign, std::to_underlying(track.classification),
+                                            std::to_underlying(track.glyph), track.route.index(), state.position.x, state.position.y, state.heading));
+        }
+
+        return described;
+    }
 }
 
 TEST(Bearing, RunsClockwiseFromNorth)
@@ -353,4 +368,65 @@ TEST(Scope, PausesTheTracksButNotTheRange)
     EXPECT_NEAR(scope.getSeconds(), before + (scope::Scope::MaxStepSeconds * scope::TimeCompression), Tolerance);
     scope.advance(-1.0F);
     EXPECT_NEAR(scope.getSeconds(), before + (scope::Scope::MaxStepSeconds * scope::TimeCompression), Tolerance);
+}
+
+TEST(Scope, ShowsTheTracksItIsGiven)
+{
+    constexpr std::size_t count{400};
+    scope::Scope scope;
+    EXPECT_EQ(std::size(scope.getTracks()), std::size(scope::DefaultTracks()));
+
+    scope.setTracks(scope::Traffic(count));
+    EXPECT_EQ(std::size(scope.getTracks()), count);
+}
+
+TEST(Traffic, MakesTheSameTracksForTheSameCount)
+{
+    constexpr std::size_t count{400};
+    const auto tracks = Describe(scope::Traffic(count));
+    EXPECT_EQ(std::size(tracks), count);
+    EXPECT_EQ(tracks, Describe(scope::Traffic(count)));
+}
+
+TEST(Traffic, MixesEveryRouteGlyphAndClassification)
+{
+    constexpr std::size_t count{36};
+    std::set<std::size_t> routes;
+    std::set<scope::Glyph> glyphs;
+    std::set<scope::Classification> classifications;
+    std::set<std::string> callsigns;
+
+    for (const auto& track : scope::Traffic(count))
+    {
+        routes.insert(track.route.index());
+        glyphs.insert(track.glyph);
+        classifications.insert(track.classification);
+        callsigns.insert(track.callsign);
+    }
+
+    EXPECT_EQ(std::size(routes), std::variant_size_v<scope::Route>);
+    EXPECT_EQ(std::size(glyphs), 3U);
+    // Ownship is the scope's own symbol, never a track.
+    EXPECT_EQ(std::size(classifications), 4U);
+    EXPECT_FALSE(classifications.contains(scope::Classification::Ownship));
+    EXPECT_EQ(std::size(callsigns), count);
+}
+
+TEST(Traffic, StaysInsideTheScaleRingAtTheInitialRange)
+{
+    constexpr std::size_t count{400};
+    constexpr int steps{720};
+    constexpr float step{5.0F};
+    const auto range = scope::RangeSteps.at(scope::InitialRangeStep);
+    // From the oldest history dot at the start, through an hour of flying.
+    const auto from = scope::StartSeconds - (static_cast<float>(scope::HistoryCount) * scope::HistoryInterval);
+
+    for (const auto& track : scope::Traffic(count))
+    {
+        for (auto i = 0; i < steps; ++i)
+        {
+            const auto seconds = from + (static_cast<float>(i) * step);
+            ASSERT_LT(scope::RangeOf(scope::Sample(track.route, seconds).position), range) << track.callsign << " at " << seconds;
+        }
+    }
 }
