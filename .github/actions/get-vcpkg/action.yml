@@ -1,5 +1,7 @@
 name: Get vcpkg
-description: Bootstrap the checked-in vcpkg revision and cache compiled dependencies.
+description: >-
+  Bootstrap the checked-in vcpkg revision and restore cached compiled dependencies.
+  Run save-vcpkg after the step that installs them.
 
 inputs:
   bootstrap:
@@ -13,23 +15,39 @@ runs:
     - name: Configure vcpkg
       id: configure
       shell: bash
+      env:
+        PREFIX: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-
+        # Include the pinned ports and SDK, not just the application manifest.
+        INPUTS_HASH: ${{ hashFiles('vcpkg.json', 'cmake/triplets/**', 'emsdk/emscripten-releases-tags.json') }}
       run: |
         echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
         echo "VCPKG_DEFAULT_BINARY_CACHE=$GITHUB_WORKSPACE/.cache/vcpkg" >> "$GITHUB_ENV"
         echo "VCPKG_BINARY_SOURCES=clear;default,readwrite" >> "$GITHUB_ENV"
         mkdir -p "$GITHUB_WORKSPACE/.cache/vcpkg"
-        echo "revision=$(git -C vcpkg rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        inputs="$PREFIX$(git -C vcpkg rev-parse HEAD)-$INPUTS_HASH-"
+        # Cache entries are immutable, so each save needs a new key. save-vcpkg only
+        # saves when this run built packages, e.g. after a runner toolchain update.
+        key="$inputs$GITHUB_SHA"
+        {
+          echo "prefix=$PREFIX"
+          echo "inputs=$inputs"
+          echo "key=$key"
+        } >> "$GITHUB_OUTPUT"
+        echo "VCPKG_CACHE_KEY=$key" >> "$GITHUB_ENV"
 
     - name: Restore vcpkg binary cache
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: .cache/vcpkg
-        # Include the pinned ports and SDK, not just the application manifest.
-        # A new commit can save packages after a runner toolchain update.
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ steps.configure.outputs.revision }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**', 'emsdk/emscripten-releases-tags.json') }}-${{ github.sha }}
+        key: ${{ steps.configure.outputs.key }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ steps.configure.outputs.revision }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**', 'emsdk/emscripten-releases-tags.json') }}-
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-
+          ${{ steps.configure.outputs.inputs }}
+          ${{ steps.configure.outputs.prefix }}
+
+    # save-vcpkg compares against this to tell whether the run built anything.
+    - name: List restored vcpkg packages
+      shell: bash
+      run: find .cache/vcpkg -type f | sort > "$RUNNER_TEMP/vcpkg-restored.txt"
 
     - name: Bootstrap vcpkg (Windows)
       if: inputs.bootstrap == 'true' && runner.os == 'Windows'

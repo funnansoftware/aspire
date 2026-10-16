@@ -61,6 +61,8 @@ jobs:
             fi
             tar -czf build/aspire-steamos-x64.tar.gz -C build/x64-steamos-gcc-release/installed .
 
+      - uses: ./.github/actions/save-vcpkg
+
       - uses: actions/upload-artifact@v4
         with:
           name: aspire-steamos-x64

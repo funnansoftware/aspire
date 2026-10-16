@@ -18,6 +18,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +39,7 @@ jobs:
       - name: Build and verify in devcontainer
         uses: ./.github/actions/devcontainer
         with:
+          image: ghcr.io/${{ github.repository }}/devcontainer
           run: |
             ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
             cmake -P cmake/bootstrap-emsdk.cmake
@@ -51,6 +55,8 @@ jobs:
                 exit 1
               fi
             done
+
+      - uses: ./.github/actions/save-vcpkg
 
       - uses: actions/upload-artifact@v4
         with:

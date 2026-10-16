@@ -1,0 +1,23 @@
+name: Save vcpkg
+description: >-
+  Save the vcpkg binary cache that get-vcpkg restored, but only when this run added
+  packages to it. A run that only reused cached packages saves nothing, so commits
+  that leave dependencies and toolchains alone do not add cache entries.
+
+runs:
+  using: composite
+  steps:
+    - name: Count new vcpkg packages
+      id: count
+      shell: bash
+      run: |
+        added=$(find .cache/vcpkg -type f | sort | comm -13 "$RUNNER_TEMP/vcpkg-restored.txt" - | grep -c . || true)
+        echo "vcpkg added $added file(s) to the restored binary cache."
+        echo "added=$added" >> "$GITHUB_OUTPUT"
+
+    - name: Save vcpkg binary cache
+      if: steps.count.outputs.added != '0'
+      uses: actions/cache/save@v4
+      with:
+        path: .cache/vcpkg
+        key: ${{ env.VCPKG_CACHE_KEY }}
