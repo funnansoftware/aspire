@@ -58,6 +58,34 @@ export namespace scope
         return std::clamp(static_cast<int>(std::ceil(twice * std::numbers::pi_v<float> / angle)), fewest, most);
     }
 
+    /// @brief Reports which way a flattened arc's point lies from its center.
+    ///
+    /// With `OnCircle()`, this is how `FlattenArc()` places its points, and how a `Mesh` places the corners of the
+    /// circles it keeps, so both put a circle's points in exactly the same places.
+    ///
+    /// @param bearings The arc's first bearing and its sweep, in degrees clockwise from north.
+    /// @param step Which of its points, from 0 at the first bearing.
+    /// @param segments How many segments the arc is flattened into.
+    /// @return The sine of the point's bearing in `x`, and its cosine in `y`.
+    [[nodiscard]] auto ArcDirection(std::pair<float, float> bearings, int step, int segments) -> Vec2
+    {
+        constexpr float halfTurn = 180.0F;
+        const auto [from, sweep] = bearings;
+        const auto bearing = from + (sweep * static_cast<float>(step) / static_cast<float>(segments));
+        const auto angle = bearing * std::numbers::pi_v<float> / halfTurn;
+        return {.x = std::sin(angle), .y = std::cos(angle)};
+    }
+
+    /// @brief Places a point on a circle.
+    /// @param center The center, on screen, where y grows downward.
+    /// @param radius The radius in pixels.
+    /// @param direction The point's direction from the center, from `ArcDirection()`.
+    /// @return The point.
+    [[nodiscard]] auto OnCircle(Vec2 center, float radius, Vec2 direction) -> Vec2
+    {
+        return {.x = center.x + (radius * direction.x), .y = center.y - (radius * direction.y)};
+    }
+
     /// @brief Flattens part of a circle into points, clockwise from a bearing.
     /// @param center The center, on screen, where y grows downward.
     /// @param radius The radius in pixels.
@@ -66,16 +94,14 @@ export namespace scope
     [[nodiscard]] auto FlattenArc(Vec2 center, float radius, std::pair<float, float> bearings) -> std::vector<Vec2>
     {
         constexpr float fullTurn = 360.0F;
-        const auto [from, sweep] = bearings;
+        const auto sweep = bearings.second;
         const auto segments = std::max(1, static_cast<int>(std::ceil(static_cast<float>(CircleSegments(radius)) * std::abs(sweep) / fullTurn)));
         std::vector<Vec2> points;
         points.reserve(static_cast<std::size_t>(segments) + 1);
 
         for (auto i = 0; i <= segments; ++i)
         {
-            const auto bearing = from + (sweep * static_cast<float>(i) / static_cast<float>(segments));
-            const auto angle = bearing * std::numbers::pi_v<float> / (fullTurn / 2.0F);
-            points.push_back({.x = center.x + (radius * std::sin(angle)), .y = center.y - (radius * std::cos(angle))});
+            points.push_back(OnCircle(center, radius, ArcDirection(bearings, i, segments)));
         }
 
         return points;
@@ -363,8 +389,7 @@ export namespace scope
                 return;
             }
 
-            // Corners' normals point out of the polygon whichever way round it's wound.
-            const auto outward = area(points) > 0.0F ? -1.0F : 1.0F;
+            const auto outward = outwardOf(points);
             const Tint clear{.r = tint.r, .g = tint.g, .b = tint.b, .a = 0.0F};
             const auto first = static_cast<int>(std::size(vertices_));
 
@@ -385,6 +410,45 @@ export namespace scope
                 const auto a = first + static_cast<int>(i * 2);
                 const auto b = first + static_cast<int>(((i + 1) % count) * 2);
                 quad(a, b, b + 1, a + 1);
+            }
+        }
+
+        /// @brief Fills a circle, its edge fading over the fringe, as `fillConvex()` fills the circle `FlattenArc()`
+        /// flattens.
+        ///
+        /// A circle's corners, their normals and its triangles are worked out the first time a circle of as many
+        /// segments is filled, and kept through `clear()`, so after that a circle is only moved and scaled into place.
+        /// Its corners are where `FlattenArc()` puts them; their normals, worked out on a circle of radius 1, may
+        /// differ from those of the corners in place in their last bits.
+        ///
+        /// @param center The center, in pixels.
+        /// @param radius The radius in pixels, more than 0.
+        /// @param tint The fill's color.
+        auto fillCircle(Vec2 center, float radius, Tint tint) -> void
+        {
+            const auto& circle = unitCircle(CircleSegments(radius));
+            const Tint clear{.r = tint.r, .g = tint.g, .b = tint.b, .a = 0.0F};
+            const auto first = std::size(vertices_);
+
+            // The mesh grows once for the circle's corners, which are written in place.
+            vertices_.resize(first + (std::size(circle.directions) * 2));
+            auto vertex = std::next(std::begin(vertices_), static_cast<std::ptrdiff_t>(first));
+
+            for (std::size_t i = 0; i < std::size(circle.directions); ++i)
+            {
+                const auto point = OnCircle(center, radius, circle.directions.at(i));
+                const auto normal = circle.normals.at(i);
+                *vertex++ = {.position = offset(point, normal, -Fringe * Half * circle.outward), .tint = tint};
+                *vertex++ = {.position = offset(point, normal, Fringe * Half * circle.outward), .tint = clear};
+            }
+
+            // The circle's triangles, numbered from its first corner.
+            const auto start = std::size(indices_);
+            indices_.insert(std::end(indices_), std::begin(circle.indices), std::end(circle.indices));
+
+            for (auto& index : std::span{indices_}.subspan(start))
+            {
+                index += static_cast<int>(first);
             }
         }
 
@@ -446,6 +510,16 @@ export namespace scope
         // The longest a sharp corner's miter may reach, as a multiple of the stroke's half width.
         static constexpr float MiterLimit = 4.0F;
 
+        // A whole circle flattened into a number of segments, on a circle of radius 1: each corner's direction from
+        // the center and its normal, and the triangles `fillConvex()` fills it with, numbered from 0.
+        struct UnitCircle
+        {
+            std::vector<Vec2> directions;
+            std::vector<Vec2> normals;
+            std::vector<int> indices;
+            float outward{};
+        };
+
         static auto direction(Vec2 from, Vec2 to) -> Vec2
         {
             const auto length = std::hypot(to.x - from.x, to.y - from.y);
@@ -470,6 +544,12 @@ export namespace scope
             }
 
             return area;
+        }
+
+        // Which way a polygon's corners' normals point out of it, whichever way round it's wound.
+        static auto outwardOf(const std::vector<Vec2>& points) -> float
+        {
+            return area(points) > 0.0F ? -1.0F : 1.0F;
         }
 
         // The normal at a point, lengthened at a corner so both edges keep their width: a miter, within the limit.
@@ -513,7 +593,11 @@ export namespace scope
 
         auto triangle(int a, int b, int c) -> void
         {
-            indices_.insert(std::end(indices_), {a, b, c});
+            // One at a time: inserting the three as a list takes the general path for inserting anywhere, which costs
+            // more than the triangles themselves.
+            indices_.push_back(a);
+            indices_.push_back(b);
+            indices_.push_back(c);
         }
 
         auto quad(int a, int b, int c, int d) -> void
@@ -522,7 +606,41 @@ export namespace scope
             triangle(a, c, d);
         }
 
+        // The circle of a number of segments, worked out the first time one is filled.
+        auto unitCircle(int segments) -> const UnitCircle&
+        {
+            const auto [found, added] = circles_.try_emplace(segments);
+            auto& circle = found->second;
+
+            if (!added)
+            {
+                return circle;
+            }
+
+            // A whole turn, without the last point, which repeats the first.
+            std::vector<Vec2> corners;
+
+            for (auto i = 0; i < segments; ++i)
+            {
+                circle.directions.push_back(ArcDirection({0.0F, FullTurn}, i, segments));
+                corners.push_back(OnCircle({}, 1.0F, circle.directions.back()));
+            }
+
+            for (std::size_t i = 0; i < std::size(corners); ++i)
+            {
+                circle.normals.push_back(joinNormal(corners, i, true));
+            }
+
+            circle.outward = outwardOf(corners);
+            Mesh filled;
+            filled.fillConvex(corners, {});
+            circle.indices = std::move(filled.indices_);
+            return circle;
+        }
+
         std::vector<Vertex> vertices_;
         std::vector<int> indices_;
+        // The circles filled so far, by their number of segments.
+        std::map<int, UnitCircle> circles_;
     };
 }

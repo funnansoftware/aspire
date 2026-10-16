@@ -22,6 +22,7 @@ namespace
     // Twice the clip's radius, so a line out to it crosses the clip's edge.
     constexpr float Far{200.0F};
     constexpr float DiscRadius{10.0F};
+    constexpr float FullTurn{360.0F};
 
     auto Distance(Vec2 a, Vec2 b) -> float
     {
@@ -44,6 +45,35 @@ namespace
     auto Style(float scale, std::optional<scope::Clip> clip) -> scope::Style
     {
         return {.scale = scale, .clip = clip, .widen = 0.0F, .opacity = 1.0F, .channels = scope::Channels::All};
+    }
+
+    // How far apart two meshes' same vertices are at most, or infinity if they have different counts or colors.
+    auto Apart(const scope::Mesh& a, const scope::Mesh& b) -> float
+    {
+        constexpr auto never = std::numeric_limits<float>::infinity();
+        const auto same = [](scope::Tint x, scope::Tint y) { return x.r == y.r && x.g == y.g && x.b == y.b && x.a == y.a; };
+
+        if (std::size(a.vertices()) != std::size(b.vertices()))
+        {
+            return never;
+        }
+
+        auto farthest = 0.0F;
+
+        for (std::size_t i = 0; i < std::size(a.vertices()); ++i)
+        {
+            const auto& x = a.vertices().at(i);
+            const auto& y = b.vertices().at(i);
+
+            if (!same(x.tint, y.tint))
+            {
+                return never;
+            }
+
+            farthest = std::max(farthest, Distance(x.position, y.position));
+        }
+
+        return farthest;
     }
 }
 
@@ -88,6 +118,28 @@ TEST(Tessellate, KeepsOrDropsAClosedShapeWholeByItsMiddle)
     EXPECT_TRUE(dropped.empty());
     // Its middle is inside, so all of it is kept, even the part past the clip's edge.
     EXPECT_TRUE(std::ranges::any_of(crossing.vertices(), [](const scope::Vertex& x) { return Distance(x.position, {}) > Unit.radius; }));
+}
+
+TEST(Tessellate, FillsADotAsItsCircleFlattened)
+{
+    // Scaled, faded and split into channels as a glowing dot is, through the circle the mesh keeps.
+    constexpr float scale{2.0F};
+    constexpr float fine{1e-4F};
+    constexpr Vec2 center{.x = 30.0F, .y = -20.0F};
+    auto dot = Dot(center, DotRadius);
+    dot.opacity = Half;
+    auto style = Style(scale, std::nullopt);
+    style.channels = scope::Channels::Fainter;
+    scope::Mesh mesh;
+    scope::Tessellate(mesh, dot, style);
+
+    auto points = scope::FlattenArc({.x = center.x * scale, .y = center.y * scale}, DotRadius * scale, {0.0F, FullTurn});
+    points.pop_back();
+    scope::Mesh flattened;
+    flattened.fillConvex(points, scope::Tinted(Lime, Half, scope::Channels::Fainter));
+
+    EXPECT_EQ(mesh.indices(), flattened.indices());
+    EXPECT_LT(Apart(mesh, flattened), fine);
 }
 
 TEST(Tessellate, CutsAnOpenLineAtTheClip)

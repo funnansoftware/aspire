@@ -19,38 +19,42 @@ namespace scope
             return {.x = x.x * scale, .y = x.y * scale};
         }
 
-        // A shape's outline as lines in pixels, each with whether it closes.
-        auto Outlines(const Geometry& geometry, float scale) -> std::vector<std::pair<std::vector<Vec2>, bool>>
+        // Hands each of a shape's outlines to `add` as a line in pixels, with whether it closes. The line is `add`'s to
+        // change. Separate segments are each handed over in the same line, refilled for each.
+        auto Outlines(const Geometry& geometry, float scale, const auto& add) -> void
         {
-            std::vector<std::pair<std::vector<Vec2>, bool>> lines;
-
             std::visit(
                 aspire::core::Overloaded{
                     [&](const Circle& x)
                     {
                         auto points = FlattenArc(Scaled(x.center, scale), x.radius * scale, {0.0F, FullTurn});
                         points.pop_back();
-                        lines.emplace_back(std::move(points), true);
+                        add(points, true);
                     },
-                    [&](const Arc& x) { lines.emplace_back(FlattenArc(Scaled(x.center, scale), x.radius * scale, {x.from, x.sweep}), false); },
+                    [&](const Arc& x)
+                    {
+                        auto points = FlattenArc(Scaled(x.center, scale), x.radius * scale, {x.from, x.sweep});
+                        add(points, false);
+                    },
                     [&](const Polyline& x)
                     {
                         std::vector<Vec2> points;
                         points.reserve(std::size(x.points));
                         std::ranges::transform(x.points, std::back_inserter(points), [scale](Vec2 p) { return Scaled(p, scale); });
-                        lines.emplace_back(std::move(points), x.closed);
+                        add(points, x.closed);
                     },
                     [&](const Segments& x)
                     {
+                        std::vector<Vec2> line;
+
                         for (std::size_t i = 0; i + 1 < std::size(x.ends); i += 2)
                         {
-                            lines.push_back({{Scaled(x.ends.at(i), scale), Scaled(x.ends.at(i + 1), scale)}, false});
+                            line.assign({Scaled(x.ends.at(i), scale), Scaled(x.ends.at(i + 1), scale)});
+                            add(line, false);
                         }
                     },
                 },
                 geometry);
-
-            return lines;
         }
     }
 }
@@ -145,40 +149,42 @@ namespace scope
             return Inside(*style.clip, Scaled(middle, 1.0F / static_cast<float>(std::size(points))));
         }
 
-        // Strokes an outline, dashed if the pen says, with open lines cut at the clip's edge.
-        auto StrokeOutline(Mesh& mesh, const Pen& pen, std::vector<Vec2> points, bool closed, const Style& style, float opacity) -> void
+        // Strokes an outline, dashed if the pen says, with open lines cut at the clip's edge. A closed outline that's
+        // dashed has its first point added again at its end, so its dashes run on round its last edge.
+        auto StrokeOutline(Mesh& mesh, const Pen& pen, std::vector<Vec2>& points, bool closed, const Style& style, float opacity) -> void
         {
             const auto width = (pen.width * style.scale) + style.widen;
             const auto tint = Tinted(pen.color, opacity, style.channels);
-            std::vector<std::vector<Vec2>> pieces;
 
-            if (pen.dashed)
+            // Strokes a piece of the outline, or if it's open, the parts of it inside the clip.
+            const auto strokePiece = [&](const std::vector<Vec2>& piece, bool joined)
             {
-                if (closed)
+                if (!style.clip.has_value() || joined)
                 {
-                    points.push_back(points.front());
-                }
-
-                pieces = Dash(points, {DashPattern.at(0) * style.scale, DashPattern.at(1) * style.scale});
-                closed = false;
-            }
-            else
-            {
-                pieces.push_back(std::move(points));
-            }
-
-            for (const auto& piece : pieces)
-            {
-                if (!style.clip.has_value() || closed)
-                {
-                    mesh.stroke(piece, closed, width, tint);
-                    continue;
+                    mesh.stroke(piece, joined, width, tint);
+                    return;
                 }
 
                 for (const auto& part : ClipToCircle(piece, style.clip->center, style.clip->radius))
                 {
                     mesh.stroke(part, false, width, tint);
                 }
+            };
+
+            if (!pen.dashed)
+            {
+                strokePiece(points, closed);
+                return;
+            }
+
+            if (closed)
+            {
+                points.push_back(points.front());
+            }
+
+            for (const auto& dash : Dash(points, {DashPattern.at(0) * style.scale, DashPattern.at(1) * style.scale}))
+            {
+                strokePiece(dash, false);
             }
         }
     }
@@ -198,28 +204,44 @@ export namespace scope
     {
         const auto opacity = shape.opacity * style.opacity;
 
-        for (auto& [points, closed] : Outlines(shape.geometry, style.scale))
+        // A filled circle with no outline, as each track's history dots are, is by far the commonest shape, so the mesh
+        // fills it from the circle it keeps rather than flattening it afresh. Its middle is its center.
+        if (const auto* circle = std::get_if<Circle>(&shape.geometry);
+            circle != nullptr && shape.fill.has_value() && !shape.pen.has_value() && circle->radius * style.scale > 0.0F)
         {
-            if (closed && !Kept(style, points))
+            const auto center = Scaled(circle->center, style.scale);
+
+            if (!style.clip.has_value() || Inside(*style.clip, center))
             {
-                continue;
+                mesh.fillCircle(center, circle->radius * style.scale, Tinted(*shape.fill, opacity, style.channels));
             }
 
-            // A shape stroked over its outline only needs its inside filled; otherwise its edge fades.
-            if (shape.fill.has_value() && closed && shape.pen.has_value())
-            {
-                mesh.fillFan(points, Tinted(*shape.fill, opacity, style.channels));
-            }
-            else if (shape.fill.has_value() && closed)
-            {
-                mesh.fillConvex(points, Tinted(*shape.fill, opacity, style.channels));
-            }
-
-            if (shape.pen.has_value())
-            {
-                StrokeOutline(mesh, *shape.pen, std::move(points), closed, style, opacity);
-            }
+            return;
         }
+
+        Outlines(shape.geometry, style.scale,
+                 [&](std::vector<Vec2>& points, bool closed)
+                 {
+                     if (closed && !Kept(style, points))
+                     {
+                         return;
+                     }
+
+                     // A shape stroked over its outline only needs its inside filled; otherwise its edge fades.
+                     if (shape.fill.has_value() && closed && shape.pen.has_value())
+                     {
+                         mesh.fillFan(points, Tinted(*shape.fill, opacity, style.channels));
+                     }
+                     else if (shape.fill.has_value() && closed)
+                     {
+                         mesh.fillConvex(points, Tinted(*shape.fill, opacity, style.channels));
+                     }
+
+                     if (shape.pen.has_value())
+                     {
+                         StrokeOutline(mesh, *shape.pen, points, closed, style, opacity);
+                     }
+                 });
     }
 
     /// @brief Adds a rule's triangles to a mesh: a quad fading from its color on the left to clear on the right.

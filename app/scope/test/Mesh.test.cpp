@@ -11,6 +11,7 @@ namespace
     constexpr float Tolerance{1e-3F};
     constexpr float Half{0.5F};
     constexpr float Tau{2.0F * std::numbers::pi_v<float>};
+    constexpr float FullTurn{360.0F};
     constexpr float Side{10.0F};
     constexpr scope::Tint White{.r = 1.0F, .g = 1.0F, .b = 1.0F, .a = 1.0F};
 
@@ -51,6 +52,35 @@ namespace
         }
 
         return true;
+    }
+
+    // How far apart two meshes' same vertices are at most, or infinity if they have different counts or colors.
+    auto Apart(const scope::Mesh& a, const scope::Mesh& b) -> float
+    {
+        constexpr auto never = std::numeric_limits<float>::infinity();
+        const auto same = [](scope::Tint x, scope::Tint y) { return x.r == y.r && x.g == y.g && x.b == y.b && x.a == y.a; };
+
+        if (std::size(a.vertices()) != std::size(b.vertices()))
+        {
+            return never;
+        }
+
+        auto farthest = 0.0F;
+
+        for (std::size_t i = 0; i < std::size(a.vertices()); ++i)
+        {
+            const auto& x = a.vertices().at(i);
+            const auto& y = b.vertices().at(i);
+
+            if (!same(x.tint, y.tint))
+            {
+                return never;
+            }
+
+            farthest = std::max(farthest, Distance(x.position, y.position));
+        }
+
+        return farthest;
     }
 }
 
@@ -262,6 +292,36 @@ TEST(Mesh, FillsWithTheFringeOutsideWoundAnticlockwise)
     mesh.fillConvex(square, White);
     ASSERT_EQ(std::size(mesh.vertices()), 8U);
     EXPECT_TRUE(FringeOutside(mesh, {.x = 5.0F, .y = 5.0F}));
+}
+
+TEST(Mesh, FillsACircleAsItFillsTheCircleFlattened)
+{
+    // Two circles of the same size, so the second is moved from the circle kept for the first, and a bigger one.
+    constexpr float fine{1e-4F};
+    const std::array circles{std::pair{Vec2{.x = 10.0F, .y = 20.0F}, 3.6F}, std::pair{Vec2{.x = 400.0F, .y = -300.0F}, 3.6F},
+                             std::pair{Vec2{.x = -50.0F, .y = 7.0F}, 40.0F}};
+    scope::Mesh kept;
+    scope::Mesh flattened;
+
+    for (const auto& [center, radius] : circles)
+    {
+        kept.fillCircle(center, radius, White);
+        auto points = scope::FlattenArc(center, radius, {0.0F, FullTurn});
+        points.pop_back();
+        flattened.fillConvex(points, White);
+    }
+
+    EXPECT_EQ(kept.indices(), flattened.indices());
+    EXPECT_LT(Apart(kept, flattened), fine);
+}
+
+TEST(Mesh, FillsACircleWithTheFringeOutside)
+{
+    constexpr Vec2 center{.x = 5.0F, .y = 5.0F};
+    scope::Mesh mesh;
+    mesh.fillCircle(center, Side, White);
+    EXPECT_EQ(std::ssize(mesh.vertices()), 2 * scope::CircleSegments(Side));
+    EXPECT_TRUE(FringeOutside(mesh, center));
 }
 
 TEST(Mesh, ClearsAndReportsEmpty)
