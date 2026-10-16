@@ -95,15 +95,16 @@ namespace
     // Turns on the option an argument names. False if it names none.
     auto ParseSwitch(std::string_view argument, Options& options) -> bool
     {
-        const auto found = std::ranges::find(Switches, argument, &Switch::name);
-
-        if (found == std::end(Switches))
+        for (const auto& x : Switches)
         {
-            return false;
+            if (x.name == argument)
+            {
+                options.*(x.option) = true;
+                return true;
+            }
         }
 
-        options.*(found->option) = true;
-        return true;
+        return false;
     }
 
     // Parses the command line. Empty if the app should exit, with `result` saying how.

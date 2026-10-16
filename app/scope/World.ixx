@@ -367,6 +367,8 @@ export namespace scope
         constexpr auto routes = std::variant_size_v<Route>;
         constexpr std::uint32_t fractionBits = 24;
 
+        // Seeded with a constant on purpose: the same count must make the same tracks in every app and every run.
+        // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp)
         std::mt19937 random{TrafficSeed};
         // Between two values, from the generator's bits alone, so every standard library makes the same tracks.
         const auto between = [&random](float low, float high)
