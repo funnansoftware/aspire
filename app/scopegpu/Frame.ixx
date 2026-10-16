@@ -167,6 +167,7 @@ namespace scopegpu
             mark.glyph = glyph;
             scope::AddMark(group, mark);
             std::vector<scope::Shape> shapes;
+            shapes.reserve(std::size(group.items));
 
             for (const auto& item : group.items)
             {
