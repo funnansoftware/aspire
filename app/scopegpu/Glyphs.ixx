@@ -15,6 +15,11 @@ import scopegpu.shelves;
 
 namespace scopegpu
 {
+    // The atlas starts as big as SDL_ttf's, and doubles whenever a frame's glyphs don't fit. Unlike the constants
+    // below, this one isn't private to the file: `Glyphs` starts its atlas at it, and GCC won't let an exported class
+    // name what only this file can see.
+    inline constexpr std::uint32_t SmallestAtlas = 1024;
+
     namespace
     {
         // The picture sizes text in points at 96 dots per inch, as the web does, and SDL_ttf at 72.
@@ -28,8 +33,7 @@ namespace scopegpu
         constexpr unsigned char ContinuationMask = 0xC0;
         constexpr unsigned char ContinuationByte = 0x80;
 
-        // The atlas starts as big as SDL_ttf's, and doubles whenever a frame's glyphs don't fit.
-        constexpr std::uint32_t SmallestAtlas = 1024;
+        // The atlas doubles up to this size, and no further.
         constexpr std::uint32_t LargestAtlas = 8192;
         // Glyphs are thrown away whenever the text's resized, so the atlas is cleared once it's half full, between
         // frames, rather than run out of room partway through one.
