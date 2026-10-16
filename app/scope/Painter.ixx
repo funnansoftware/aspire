@@ -284,6 +284,8 @@ export namespace scope
                         },
                         // NOLINTNEXTLINE(misc-no-recursion)
                         [&](const Group& x) { return drawGroup(x, style); },
+                        // Pictures are composed for this painter with their marks as shapes, so they hold none.
+                        [](const Marks& /*x*/) { return true; },
                     },
                     item.value);
 

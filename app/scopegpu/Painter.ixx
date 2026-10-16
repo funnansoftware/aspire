@@ -83,10 +83,45 @@ namespace scopegpu
                 .location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = sizeof(scope::Vec2) + sizeof(scope::Tint)},
         };
 
+        // The marks' mesh's corners: a position in pixels, an alpha and, for a line's end, how far it reaches; and which
+        // part of a mark each is.
+        constexpr std::uint32_t Vec4Bytes = 16;
+        static_assert(sizeof(MarkVertex) == Vec4Bytes + sizeof(std::uint32_t));
+        constexpr std::array MarkAttributes{
+            SDL_GPUVertexAttribute{.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, .offset = 0},
+            SDL_GPUVertexAttribute{.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_UINT, .offset = Vec4Bytes},
+        };
+
+        // Each mark's instance: where it is and its heading, its color, its leader and tick, its dots and its flags.
+        constexpr std::uint32_t MarkInstanceVectors = 6;
+        static_assert(sizeof(MarkInstance) == (MarkInstanceVectors * Vec4Bytes) + sizeof(std::uint32_t));
+        constexpr auto MarkInstanceAttributes = []
+        {
+            std::array<SDL_GPUVertexAttribute, MarkInstanceVectors + 1> x{};
+
+            for (std::uint32_t i = 0; i <= MarkInstanceVectors; ++i)
+            {
+                x.at(i) = {.location = static_cast<std::uint32_t>(std::size(MarkAttributes)) + i,
+                           .buffer_slot = 1,
+                           .format = i < MarkInstanceVectors ? SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4 : SDL_GPU_VERTEXELEMENTFORMAT_UINT,
+                           .offset = i * Vec4Bytes};
+            }
+
+            return x;
+        }();
+
         // The other shaders' uniform blocks, laid out as std140 lays them out.
         struct TargetUniforms
         {
             std::array<float, 4> projection{};
+        };
+
+        // mark.vert's, which starts as shape.vert's does, so shapes drawn after marks find their projection.
+        struct MarkUniforms
+        {
+            std::array<float, 4> projection{};
+            // Target pixels per logical unit, and 1 if the scale ring clips the marks.
+            std::array<float, 4> view{};
         };
 
         struct BackdropUniforms
@@ -156,7 +191,7 @@ namespace scopegpu
             SDL_BindGPUIndexBuffer(pass, &mesh.indices, SDL_GPU_INDEXELEMENTSIZE_32BIT);
         }
 
-        // What a pipeline draws with: its shaders, its vertices, and its targets.
+        // What a pipeline draws with: its shaders, its vertices and, if it draws instances, theirs, and its targets.
         struct PipelineInfo
         {
             ShaderName vertex{};
@@ -164,6 +199,8 @@ namespace scopegpu
             std::span<const SDL_GPUVertexAttribute> attributes;
             std::uint32_t pitch{};
             std::span<const SDL_GPUColorTargetDescription> targets;
+            std::span<const SDL_GPUVertexAttribute> instanceAttributes;
+            std::uint32_t instancePitch{};
         };
 
         // Makes a pipeline that draws triangle lists as SDL's renderer does: no culling, one sample, no depth.
@@ -177,17 +214,24 @@ namespace scopegpu
                 return {};
             }
 
-            // Direct3D 12 finds a vertex buffer's description by its index, so the one buffer is at slot 0.
-            const SDL_GPUVertexBufferDescription buffer{
-                .slot = 0, .pitch = x.pitch, .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0};
+            // Direct3D 12 finds a vertex buffer's description by its index, so each buffer's at the slot of its index:
+            // the vertices' at 0, and any instances' at 1.
+            const std::array buffers{
+                SDL_GPUVertexBufferDescription{.slot = 0, .pitch = x.pitch, .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0},
+                SDL_GPUVertexBufferDescription{
+                    .slot = 1, .pitch = x.instancePitch, .input_rate = SDL_GPU_VERTEXINPUTRATE_INSTANCE, .instance_step_rate = 0},
+            };
             const auto vertices = !std::empty(x.attributes);
+            const auto instances = !std::empty(x.instanceAttributes);
+            std::vector<SDL_GPUVertexAttribute> attributes{std::begin(x.attributes), std::end(x.attributes)};
+            attributes.insert(std::end(attributes), std::begin(x.instanceAttributes), std::end(x.instanceAttributes));
             SDL_GPUGraphicsPipelineCreateInfo info{};
             info.vertex_shader = vertex.get();
             info.fragment_shader = fragment.get();
-            info.vertex_input_state.vertex_buffer_descriptions = vertices ? &buffer : nullptr;
-            info.vertex_input_state.num_vertex_buffers = vertices ? 1 : 0;
-            info.vertex_input_state.vertex_attributes = std::data(x.attributes);
-            info.vertex_input_state.num_vertex_attributes = static_cast<std::uint32_t>(std::size(x.attributes));
+            info.vertex_input_state.vertex_buffer_descriptions = vertices ? std::data(buffers) : nullptr;
+            info.vertex_input_state.num_vertex_buffers = instances ? 2 : (vertices ? 1 : 0);
+            info.vertex_input_state.vertex_attributes = std::data(attributes);
+            info.vertex_input_state.num_vertex_attributes = static_cast<std::uint32_t>(std::size(attributes));
             info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
             info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
             info.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
@@ -224,6 +268,9 @@ export namespace scopegpu
     /// picture's order with its text. The glow is drawn into two small textures at once, its full channels and its
     /// fainter ones, blurred across and then down by a shader that takes every tap in one pass, and composited
     /// over the backdrop by a shader that shades the backdrop itself. Every frame's data goes up in one copy pass.
+    ///
+    /// Retained, the tracks' marks are drawn instead as instances of one mesh kept on the GPU, in one draw for the
+    /// main pass and one for the glow; each frame uploads only where each mark is.
     class Painter
     {
     public:
@@ -291,6 +338,18 @@ export namespace scopegpu
             framesPerSecond_ = x;
         }
 
+        /// @brief Sets whether the tracks' marks are drawn from a mesh kept on the GPU, an instance for each track,
+        /// rather than tessellated afresh each frame as scope tessellates them.
+        ///
+        /// Each frame then uploads only where each track is, rather than every triangle of every mark. The marks look
+        /// the same, but their corners are placed by the GPU, so they can differ from scope's in their last bits.
+        ///
+        /// @param x `true` to keep the marks' mesh on the GPU; `false`, the default, to draw scope's triangles.
+        auto setRetained(bool x) -> void
+        {
+            retained_ = x;
+        }
+
         /// @brief Draws and submits a frame of the scope, presenting it if there's a window.
         /// @param scope The scope to draw.
         /// @param capture A PNG file to save the frame to, or empty not to. Saving waits for the GPU.
@@ -343,18 +402,40 @@ export namespace scopegpu
             Extent size;
         };
 
+        // A run of marks to draw, into the main pass's target or the glow's.
+        struct MarksDraw
+        {
+            MarksRun run;
+            bool glow{};
+            Extent target;
+        };
+
+        // Where the marks' meshes are in the buffers kept for them, in bytes from their starts: the picture's scale's
+        // first, then the glow's.
+        struct MarkLayout
+        {
+            std::uint32_t glowVertices{};
+            std::uint32_t vertexBytes{};
+            std::uint32_t glowIndices{};
+            std::uint32_t indexBytes{};
+        };
+
         // Where a frame's data is in the buffers, in bytes from their starts. The main mesh starts each buffer.
         struct Layout
         {
             std::uint32_t glowVertices{};
             std::uint32_t glyphVertices{};
+            std::uint32_t markInstances{};
             std::uint32_t vertexBytes{};
             std::uint32_t glowIndices{};
             std::uint32_t glyphIndices{};
             std::uint32_t indexBytes{};
-            // In the transfer buffer: the vertices, then the indices, then the new glyphs.
+            // In the transfer buffer: the vertices, then the indices, then the new glyphs, then the marks' meshes if
+            // they were made again.
             std::uint32_t indexUpload{};
             std::uint32_t glyphUpload{};
+            std::uint32_t markUpload{};
+            std::optional<MarkLayout> marks;
             std::uint32_t uploadBytes{};
         };
 
@@ -400,6 +481,20 @@ export namespace scopegpu
                                                           .attributes = {},
                                                           .pitch = 0,
                                                           .targets = frameReplaced});
+            markPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::MarkVertex,
+                                                     .fragment = ShaderName::ShapeFragment,
+                                                     .attributes = MarkAttributes,
+                                                     .pitch = sizeof(MarkVertex),
+                                                     .targets = frame,
+                                                     .instanceAttributes = MarkInstanceAttributes,
+                                                     .instancePitch = sizeof(MarkInstance)});
+            markGlowPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::MarkVertex,
+                                                         .fragment = ShaderName::GlowFragment,
+                                                         .attributes = MarkAttributes,
+                                                         .pitch = sizeof(MarkVertex),
+                                                         .targets = glow,
+                                                         .instanceAttributes = MarkInstanceAttributes,
+                                                         .instancePitch = sizeof(MarkInstance)});
             linear_ = CreateSampler(device_, SDL_GPU_FILTER_LINEAR);
             nearest_ = CreateSampler(device_, SDL_GPU_FILTER_NEAREST);
             // Bound in the glow's place when nothing glows, since the composite always takes two textures.
@@ -411,8 +506,8 @@ export namespace scopegpu
                     CreateTexture(device_, OffscreenFormat, offscreenSize_, SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER);
             }
 
-            return shapePipeline_ && glowPipeline_ && textPipeline_ && blurPipeline_ && compositePipeline_ && linear_ && nearest_ && placeholder_
-                   && (window_ != nullptr || offscreen_);
+            return shapePipeline_ && glowPipeline_ && textPipeline_ && blurPipeline_ && compositePipeline_ && markPipeline_ && markGlowPipeline_
+                   && linear_ && nearest_ && placeholder_ && (window_ != nullptr || offscreen_);
         }
 
         // The texture to draw the frame into: the window's swapchain texture, waited for, or the offscreen one. Empty
@@ -546,7 +641,8 @@ export namespace scopegpu
                                        .advance = glyphs_.advance(),
                                        .caption = caption_,
                                        .milliseconds = milliseconds_,
-                                       .framesPerSecond = framesPerSecond_});
+                                       .framesPerSecond = framesPerSecond_,
+                                       .marks = retained_});
             frame_.build(picture_, static_cast<int>(size.width), static_cast<int>(size.height));
 
             if (!layOutText())
@@ -641,12 +737,34 @@ export namespace scopegpu
             x.glowVertices = AlignUp(BytesOf(frame_.mesh().vertices()), RegionAlignment);
             x.glyphVertices = x.glowVertices + AlignUp(BytesOf(frame_.glowMesh().vertices()), RegionAlignment);
             x.vertexBytes = x.glyphVertices + BytesOf(glyphs_.vertices());
+
+            // The marks' instances go up with the vertices, which they're drawn from beside the marks' mesh.
+            if (!std::empty(frame_.markInstances()))
+            {
+                x.markInstances = AlignUp(x.vertexBytes, RegionAlignment);
+                x.vertexBytes = x.markInstances + BytesOf(frame_.markInstances());
+            }
+
             x.glowIndices = AlignUp(BytesOf(frame_.mesh().indices()), RegionAlignment);
             x.glyphIndices = x.glowIndices + AlignUp(BytesOf(frame_.glowMesh().indices()), RegionAlignment);
             x.indexBytes = x.glyphIndices + BytesOf(glyphs_.indices());
             x.indexUpload = AlignUp(x.vertexBytes, RegionAlignment);
             x.glyphUpload = AlignUp(x.indexUpload + x.indexBytes, RegionAlignment);
             x.uploadBytes = x.glyphUpload + static_cast<std::uint32_t>(std::size(glyphs_.staged()));
+
+            // The marks' meshes go up only when they've been made again.
+            if (frame_.markGeneration() != markGeneration_)
+            {
+                MarkLayout marks;
+                marks.glowVertices = AlignUp(BytesOf(frame_.markMesh().vertices), RegionAlignment);
+                marks.vertexBytes = marks.glowVertices + BytesOf(frame_.markGlowMesh().vertices);
+                marks.glowIndices = AlignUp(BytesOf(frame_.markMesh().indices), RegionAlignment);
+                marks.indexBytes = marks.glowIndices + BytesOf(frame_.markGlowMesh().indices);
+                x.markUpload = AlignUp(x.uploadBytes, RegionAlignment);
+                x.uploadBytes = x.markUpload + AlignUp(marks.vertexBytes, RegionAlignment) + marks.indexBytes;
+                x.marks = marks;
+            }
+
             return x;
         }
 
@@ -676,7 +794,26 @@ export namespace scopegpu
                 uploadCapacity_ = upload_ ? size : 0;
             }
 
-            return vertices_ && indices_ && upload_;
+            if (!layout.marks.has_value())
+            {
+                return vertices_ && indices_ && upload_;
+            }
+
+            if (!markVertices_ || markVertexCapacity_ < layout.marks->vertexBytes)
+            {
+                const auto size = grown(layout.marks->vertexBytes);
+                markVertices_ = CreateBuffer(device_, SDL_GPU_BUFFERUSAGE_VERTEX, size);
+                markVertexCapacity_ = markVertices_ ? size : 0;
+            }
+
+            if (!markIndices_ || markIndexCapacity_ < layout.marks->indexBytes)
+            {
+                const auto size = grown(layout.marks->indexBytes);
+                markIndices_ = CreateBuffer(device_, SDL_GPU_BUFFERUSAGE_INDEX, size);
+                markIndexCapacity_ = markIndices_ ? size : 0;
+            }
+
+            return vertices_ && indices_ && upload_ && markVertices_ && markIndices_;
         }
 
         // Copies the frame's vertices, indices and new glyphs to the GPU, in one copy pass.
@@ -701,6 +838,18 @@ export namespace scopegpu
             put(layout.indexUpload + layout.glowIndices, std::as_bytes(std::span{frame_.glowMesh().indices()}));
             put(layout.indexUpload + layout.glyphIndices, std::as_bytes(std::span{glyphs_.indices()}));
             put(layout.glyphUpload, glyphs_.staged());
+            put(layout.markInstances, std::as_bytes(std::span{frame_.markInstances()}));
+
+            const auto markIndexUpload = layout.marks.has_value() ? layout.markUpload + AlignUp(layout.marks->vertexBytes, RegionAlignment) : 0;
+
+            if (layout.marks.has_value())
+            {
+                put(layout.markUpload, std::as_bytes(std::span{frame_.markMesh().vertices}));
+                put(layout.markUpload + layout.marks->glowVertices, std::as_bytes(std::span{frame_.markGlowMesh().vertices}));
+                put(markIndexUpload, std::as_bytes(std::span{frame_.markMesh().indices}));
+                put(markIndexUpload + layout.marks->glowIndices, std::as_bytes(std::span{frame_.markGlowMesh().indices}));
+            }
+
             SDL_UnmapGPUTransferBuffer(device_, upload_.get());
 
             auto* copy = SDL_BeginGPUCopyPass(commands);
@@ -742,6 +891,20 @@ export namespace scopegpu
                                               .h = glyph.slot.height,
                                               .d = 1};
                 SDL_UploadToGPUTexture(copy, &from, &to, false);
+            }
+
+            // The marks' meshes stay where they are from frame to frame. When they're made again, the frames in flight
+            // may still be drawing the old ones, so the buffers are cycled.
+            if (layout.marks.has_value())
+            {
+                const SDL_GPUTransferBufferLocation vertices{.transfer_buffer = upload_.get(), .offset = layout.markUpload};
+                const SDL_GPUBufferRegion intoVertices{.buffer = markVertices_.get(), .offset = 0, .size = layout.marks->vertexBytes};
+                SDL_UploadToGPUBuffer(copy, &vertices, &intoVertices, true);
+                const SDL_GPUTransferBufferLocation indices{.transfer_buffer = upload_.get(), .offset = markIndexUpload};
+                const SDL_GPUBufferRegion intoIndices{.buffer = markIndices_.get(), .offset = 0, .size = layout.marks->indexBytes};
+                SDL_UploadToGPUBuffer(copy, &indices, &intoIndices, true);
+                markLayout_ = *layout.marks;
+                markGeneration_ = frame_.markGeneration();
             }
 
             SDL_EndGPUCopyPass(copy);
@@ -800,6 +963,16 @@ export namespace scopegpu
             const std::array shapes{ColorTarget(full, clear, true), ColorTarget(fainter, clear, true)};
             auto* pass = beginPass(commands, shapes);
             const auto projection = ProjectionOf(glowSize_);
+
+            // The tracks' marks go first, as their groups come before ownship's.
+            if (frame_.marksGlow())
+            {
+                drawMarks(commands, pass, layout,
+                          {.run = {.firstInstance = 0, .instanceCount = static_cast<std::uint32_t>(std::size(frame_.markInstances()))},
+                           .glow = true,
+                           .target = glowSize_});
+            }
+
             BindMesh(pass, glowPipeline_.get(),
                      {.vertices = {.buffer = vertices_.get(), .offset = layout.glowVertices},
                       .indices = {.buffer = indices_.get(), .offset = layout.glowIndices}});
@@ -880,6 +1053,7 @@ export namespace scopegpu
                 Shapes,
                 Text,
                 Backdrop,
+                Marks,
             };
             auto bound = Bound::Nothing;
 
@@ -924,11 +1098,45 @@ export namespace scopegpu
 
                             drawIndexed(pass, count, first);
                         },
+                        [&](const MarksRun& x)
+                        {
+                            drawMarks(commands, pass, layout, {.run = x, .glow = false, .target = target.size});
+                            bound = Bound::Marks;
+                        },
                     },
                     frame_.runs().at(i));
             }
 
             SDL_EndGPURenderPass(pass);
+        }
+
+        // Draws a run of the tracks' marks as instances of their mesh: at the picture's scale, where the scale ring
+        // keeps and cuts them, or at the glow's, whole. The uniforms they push start with the target's projection,
+        // which shapes and text drawn after them read.
+        auto drawMarks(SDL_GPUCommandBuffer* commands, SDL_GPURenderPass* pass, const Layout& layout, const MarksDraw& x) -> void
+        {
+            const auto& mesh = x.glow ? frame_.markGlowMesh() : frame_.markMesh();
+
+            if (x.run.instanceCount == 0 || std::empty(mesh.indices))
+            {
+                return;
+            }
+
+            // The instances are bound from the run's first, so each backend starts its instances at 0.
+            const std::array buffers{
+                SDL_GPUBufferBinding{.buffer = markVertices_.get(), .offset = x.glow ? markLayout_.glowVertices : 0},
+                SDL_GPUBufferBinding{.buffer = vertices_.get(),
+                                     .offset = layout.markInstances + (x.run.firstInstance * static_cast<std::uint32_t>(sizeof(MarkInstance)))},
+            };
+            const SDL_GPUBufferBinding indices{.buffer = markIndices_.get(), .offset = x.glow ? markLayout_.glowIndices : 0};
+            const MarkUniforms uniforms{.projection = ProjectionOf(x.target).projection,
+                                        .view = {x.glow ? frame_.glow()->scale : frame_.scale(), x.glow ? 0.0F : 1.0F, 0.0F, 0.0F}};
+            SDL_BindGPUGraphicsPipeline(pass, x.glow ? markGlowPipeline_.get() : markPipeline_.get());
+            SDL_BindGPUVertexBuffers(pass, 0, std::data(buffers), static_cast<std::uint32_t>(std::size(buffers)));
+            SDL_BindGPUIndexBuffer(pass, &indices, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+            SDL_PushGPUVertexUniformData(commands, 0, &uniforms, sizeof(uniforms));
+            SDL_DrawGPUIndexedPrimitives(pass, static_cast<std::uint32_t>(std::size(mesh.indices)), x.run.instanceCount, 0, 0, 0);
+            ++stats_.draws;
         }
 
         // Shades the backdrop over the whole target, with the glow over it if anything glows.
@@ -1057,6 +1265,8 @@ export namespace scopegpu
         Pipeline textPipeline_;
         Pipeline blurPipeline_;
         Pipeline compositePipeline_;
+        Pipeline markPipeline_;
+        Pipeline markGlowPipeline_;
         Sampler linear_;
         Sampler nearest_;
         Texture placeholder_;
@@ -1072,6 +1282,14 @@ export namespace scopegpu
         std::uint32_t vertexCapacity_{};
         std::uint32_t indexCapacity_{};
         std::uint32_t uploadCapacity_{};
+        // The marks' meshes, kept from frame to frame: where each is, and which make of them the frame's was uploaded.
+        Buffer markVertices_;
+        Buffer markIndices_;
+        std::uint32_t markVertexCapacity_{};
+        std::uint32_t markIndexCapacity_{};
+        MarkLayout markLayout_;
+        std::uint32_t markGeneration_{};
+        bool retained_{};
         Glyphs glyphs_;
         // The picture being drawn, which the frame's runs point into, so it's kept until the frame's main pass is recorded.
         scope::Picture picture_;

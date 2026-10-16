@@ -19,6 +19,8 @@ export namespace scopegpu
         ShapeFragment,
         /// Glowing shapes, split into their full and fainter channels.
         GlowFragment,
+        /// Tracks' marks, each an instance of a mesh kept on the GPU, moved into place.
+        MarkVertex,
         /// Glyphs' quads, with where they are in the atlas.
         TextVertex,
         /// Glyphs from the atlas.
@@ -74,6 +76,8 @@ namespace scopegpu
                     return {.blobs = &shadercode::ShapeFragment, .stage = SDL_GPU_SHADERSTAGE_FRAGMENT, .samplers = 0, .uniformBuffers = 0};
                 case ShaderName::GlowFragment:
                     return {.blobs = &shadercode::GlowFragment, .stage = SDL_GPU_SHADERSTAGE_FRAGMENT, .samplers = 0, .uniformBuffers = 0};
+                case ShaderName::MarkVertex:
+                    return {.blobs = &shadercode::MarkVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::TextVertex:
                     return {.blobs = &shadercode::TextVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::TextFragment:

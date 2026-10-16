@@ -431,6 +431,8 @@ export namespace scopegpu2d
                         },
                         // NOLINTNEXTLINE(misc-no-recursion)
                         [&](const scope::Group& x) { return drawGroup(x, style); },
+                        // Pictures are composed for this painter with their marks as shapes, so they hold none.
+                        [](const scope::Marks& /*x*/) { return true; },
                     },
                     item.value);
 

@@ -42,6 +42,7 @@ set(scopegpuShaders
     fullscreen.vert
     glow.frag
     glow2d.frag
+    mark.vert
     shape.frag
     shape.vert
     text.frag

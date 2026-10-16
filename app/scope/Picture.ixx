@@ -98,6 +98,33 @@ export namespace scope
         Color color;
     };
 
+    /// @brief A track's mark inside the scale ring: its history dots, the leader that shows its speed, and its symbol.
+    ///
+    /// `AddMark()` draws a mark as shapes. A renderer that draws marks itself can have the picture hold them as they
+    /// are instead, in a `Marks`.
+    struct Mark
+    {
+        Glyph glyph{};
+        Color color;
+        /// Where the track is, in logical units.
+        Vec2 at;
+        /// Degrees clockwise from north.
+        float heading{};
+        /// From the symbol's nose to the leader's end, in logical units.
+        float leader{};
+        /// Where the track has been, in logical units, newest first.
+        std::array<Vec2, HistoryCount> dots{};
+    };
+
+    /// @brief The tracks' marks, where the picture would otherwise hold a glowing group of shapes for each.
+    struct Marks
+    {
+        /// In the order the tracks are listed, which is the order they're drawn in.
+        std::vector<Mark> marks;
+        /// Whether they glow, as their groups would.
+        bool glow{};
+    };
+
     struct Item;
 
     /// @brief Items drawn together: clipped to a circle, or glowing like a phosphor display.
@@ -110,7 +137,7 @@ export namespace scope
 
     struct Item
     {
-        std::variant<Shape, Text, Backdrop, Rule, Group> value;
+        std::variant<Shape, Text, Backdrop, Rule, Group, Marks> value;
     };
 
     /// @brief A frame of the scope.
@@ -133,6 +160,9 @@ export namespace scope
         std::string_view caption;
         double milliseconds{};
         double framesPerSecond{};
+        /// Whether the tracks' marks are left to the renderer: the picture holds them in a `Marks` where their groups
+        /// of shapes would be. Only for a renderer that draws marks itself.
+        bool marks{};
     };
 }
 
@@ -237,6 +267,7 @@ namespace scope
             bool text{};
             float advance{};
             bool glow{};
+            bool marks{};
         };
 
         // A point a distance from a center, at a bearing.
@@ -435,10 +466,46 @@ namespace scope
                              .opacity = 1.0F});
         }
 
-        // The tracks inside the scale ring: their history dots, leader lines showing their speed, and symbols, each
-        // in a glowing group of its own.
+    }
+}
+
+export namespace scope
+{
+    /// @brief Adds a track's mark to a group as shapes: its history dots, fading as they age, its leader, and its
+    /// symbol pointing along its heading, in that order.
+    /// @param group The group to add to.
+    /// @param x The mark.
+    auto AddMark(Group& group, const Mark& x) -> void
+    {
+        for (std::size_t i = 0; i < std::size(x.dots); ++i)
+        {
+            AddShape(group, {.geometry = Circle{.center = x.dots.at(i), .radius = HistoryDotRadius},
+                             .pen = std::nullopt,
+                             .fill = x.color,
+                             .opacity = HistoryOpacity * (1.0F - (static_cast<float>(i) / static_cast<float>(std::size(x.dots))))});
+        }
+
+        const auto nose = At(x.at, {.radius = SymbolSize, .bearing = x.heading});
+        AddShape(group, Line(nose, At(nose, {.radius = x.leader, .bearing = x.heading}), {.color = x.color, .width = ThinLineWidth}));
+        AddSymbol(group, {.glyph = x.glyph, .at = x.at, .heading = x.heading, .size = SymbolSize, .color = x.color});
+    }
+}
+
+namespace scope
+{
+    namespace
+    {
+        // The tracks inside the scale ring, each marked in a glowing group of its own, or all their marks together
+        // for a renderer that draws them itself.
         auto AddTracks(Group& group, const Frame& frame) -> void
         {
+            Marks marks{.marks = {}, .glow = frame.glow};
+
+            if (frame.marks)
+            {
+                marks.marks.reserve(std::size(frame.tracks));
+            }
+
             for (const auto& track : frame.tracks)
             {
                 const auto state = Sample(track.route, frame.seconds);
@@ -448,24 +515,28 @@ namespace scope
                     continue;
                 }
 
-                const auto color = frame.palette.colorOf(track.classification);
-                Group drawn{.items = {}, .clip = std::nullopt, .glow = frame.glow};
-                const auto dots = History(track.route, frame.seconds);
+                Mark mark{.glyph = track.glyph,
+                          .color = frame.palette.colorOf(track.classification),
+                          .at = ToView(frame, state.position),
+                          .heading = state.heading,
+                          .leader = state.knots * LeaderPerKnot,
+                          .dots = {}};
+                std::ranges::transform(History(track.route, frame.seconds), std::begin(mark.dots), [&frame](Vec2 x) { return ToView(frame, x); });
 
-                for (std::size_t i = 0; i < std::size(dots); ++i)
+                if (frame.marks)
                 {
-                    AddShape(drawn, {.geometry = Circle{.center = ToView(frame, dots.at(i)), .radius = HistoryDotRadius},
-                                     .pen = std::nullopt,
-                                     .fill = color,
-                                     .opacity = HistoryOpacity * (1.0F - (static_cast<float>(i) / static_cast<float>(std::size(dots))))});
+                    marks.marks.push_back(mark);
+                    continue;
                 }
 
-                const auto at = ToView(frame, state.position);
-                const auto nose = At(at, {.radius = SymbolSize, .bearing = state.heading});
-                AddShape(drawn, Line(nose, At(nose, {.radius = state.knots * LeaderPerKnot, .bearing = state.heading}),
-                                     {.color = color, .width = ThinLineWidth}));
-                AddSymbol(drawn, {.glyph = track.glyph, .at = at, .heading = state.heading, .size = SymbolSize, .color = color});
+                Group drawn{.items = {}, .clip = std::nullopt, .glow = frame.glow};
+                AddMark(drawn, mark);
                 AddGroup(group, std::move(drawn));
+            }
+
+            if (frame.marks)
+            {
+                group.items.emplace_back(std::move(marks));
             }
         }
 
@@ -615,7 +686,8 @@ export namespace scope
                           .pingSeconds = scope.getPingSeconds(),
                           .text = view.text,
                           .advance = view.advance,
-                          .glow = scope.getGlow()};
+                          .glow = scope.getGlow(),
+                          .marks = view.marks};
 
         Picture picture{.scale = scale, .root = {}};
         auto& root = picture.root;

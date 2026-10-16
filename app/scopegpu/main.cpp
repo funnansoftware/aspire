@@ -71,6 +71,8 @@ namespace
         std::size_t tracks{};
         // Draws into a texture rather than a window, as where there's no display to show one.
         bool offscreen{};
+        // Draws the tracks' marks from a mesh kept on the GPU, rather than as scope tessellates them each frame.
+        bool retained{};
         int width{WindowWidth};
         int height{WindowHeight};
     };
@@ -104,6 +106,7 @@ namespace
         {.name = "--no-glow", .option = &Options::noGlow},
         {.name = "--no-cycle", .option = &Options::noCycle},
         {.name = "--offscreen", .option = &Options::offscreen},
+        {.name = "--retained", .option = &Options::retained},
     });
 
     // Turns on the option an argument names. False if it names none.
@@ -142,8 +145,8 @@ namespace
             if (argument == "--help")
             {
                 Log(SDL_LOG_PRIORITY_INFO,
-                    "Usage: scopegpu [--paused] [--no-glow] [--no-cycle] [--tracks=N] [--size=WxH] [--offscreen] [--frames=N [--capture=FILE.png] "
-                    "[--benchmark]]  (N must be positive; omit for interactive mode)");
+                    "Usage: scopegpu [--paused] [--no-glow] [--no-cycle] [--tracks=N] [--size=WxH] [--offscreen] [--retained] [--frames=N "
+                    "[--capture=FILE.png] [--benchmark]]  (N must be positive; omit for interactive mode)");
                 result = SDL_APP_SUCCESS;
                 return std::nullopt;
             }
@@ -521,6 +524,13 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     }
 
     app.painter->setCaption(caption);
+    app.painter->setRetained(app.options.retained);
+
+    if (app.options.retained)
+    {
+        Log(SDL_LOG_PRIORITY_INFO, "Drawing the tracks' marks from a mesh kept on the GPU");
+    }
+
     LoadFont(*app.painter);
     return SDL_APP_CONTINUE;
 }
