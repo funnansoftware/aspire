@@ -92,21 +92,27 @@ namespace scopegpu
             SDL_GPUVertexAttribute{.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_UINT, .offset = Vec4Bytes},
         };
 
-        // Each mark's instance: where it is and its heading, its color, its leader and tick, its dots and its flags.
-        constexpr std::uint32_t MarkInstanceVectors = 6;
-        static_assert(sizeof(MarkInstance) == (MarkInstanceVectors * Vec4Bytes) + sizeof(std::uint32_t));
+        // Each mark's instance: where it is with its heading and its route's clock, its color, its leader and tick, its
+        // route and how fast it goes, and its flags.
+        constexpr std::uint32_t MarkInstanceVectors = 4;
+        static_assert(sizeof(MarkInstance) == (MarkInstanceVectors * Vec4Bytes) + sizeof(float) + sizeof(std::uint32_t));
         constexpr auto MarkInstanceAttributes = []
         {
-            std::array<SDL_GPUVertexAttribute, MarkInstanceVectors + 1> x{};
+            std::array<SDL_GPUVertexAttribute, MarkInstanceVectors + 2> x{};
+            const auto first = static_cast<std::uint32_t>(std::size(MarkAttributes));
 
-            for (std::uint32_t i = 0; i <= MarkInstanceVectors; ++i)
+            for (std::uint32_t i = 0; i < MarkInstanceVectors; ++i)
             {
-                x.at(i) = {.location = static_cast<std::uint32_t>(std::size(MarkAttributes)) + i,
-                           .buffer_slot = 1,
-                           .format = i < MarkInstanceVectors ? SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4 : SDL_GPU_VERTEXELEMENTFORMAT_UINT,
-                           .offset = i * Vec4Bytes};
+                x.at(i) = {.location = first + i, .buffer_slot = 1, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, .offset = i * Vec4Bytes};
             }
 
+            constexpr auto pace = MarkInstanceVectors * Vec4Bytes;
+            x.at(MarkInstanceVectors) = {
+                .location = first + MarkInstanceVectors, .buffer_slot = 1, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT, .offset = pace};
+            x.at(MarkInstanceVectors + 1) = {.location = first + MarkInstanceVectors + 1,
+                                             .buffer_slot = 1,
+                                             .format = SDL_GPU_VERTEXELEMENTFORMAT_UINT,
+                                             .offset = pace + static_cast<std::uint32_t>(sizeof(float))};
             return x;
         }();
 
@@ -155,6 +161,10 @@ namespace scopegpu
             std::array<float, 4> projection{};
             // Target pixels per logical unit, and 1 if the scale ring clips the marks.
             std::array<float, 4> view{};
+            // Where ownship is in logical units, logical units per nautical mile, and scope seconds between dots.
+            std::array<float, 4> world{};
+            // The scale ring in target pixels: its center and radius.
+            std::array<float, 4> clip{};
         };
 
         // block.vert's, which starts as text.vert's does.
@@ -1251,8 +1261,14 @@ export namespace scopegpu
                                      .offset = layout.markInstances + (x.run.firstInstance * static_cast<std::uint32_t>(sizeof(MarkInstance)))},
             };
             const SDL_GPUBufferBinding indices{.buffer = markIndices_.get(), .offset = x.glow ? markLayout_.glowIndices : 0};
+            // The glow's marks are whole: the scale ring only clips the main pass's.
+            const auto& view = frame_.markView();
+            const auto clipped = !x.glow && view.clip.has_value();
+            const auto clip = view.clip.value_or(scope::Clip{});
             const MarkUniforms uniforms{.projection = ProjectionOf(x.target).projection,
-                                        .view = {x.glow ? frame_.glow()->scale : frame_.scale(), x.glow ? 0.0F : 1.0F, 0.0F, 0.0F}};
+                                        .view = {x.glow ? frame_.glow()->scale : frame_.scale(), clipped ? 1.0F : 0.0F, 0.0F, 0.0F},
+                                        .world = {view.center.x, view.center.y, view.unitsPerNm, view.interval},
+                                        .clip = {clip.center.x, clip.center.y, clip.radius, 0.0F}};
             SDL_BindGPUGraphicsPipeline(pass, x.glow ? markGlowPipeline_.get() : markPipeline_.get());
             SDL_BindGPUVertexBuffers(pass, 0, std::data(buffers), static_cast<std::uint32_t>(std::size(buffers)));
             SDL_BindGPUIndexBuffer(pass, &indices, SDL_GPU_INDEXELEMENTSIZE_32BIT);

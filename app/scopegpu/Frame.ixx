@@ -50,19 +50,38 @@ export namespace scopegpu
         std::vector<std::uint32_t> indices;
     };
 
-    /// @brief A track's mark as the GPU draws it: an instance of the marks' mesh, in logical units.
+    /// @brief A track's mark as the GPU draws it: an instance of the marks' mesh, in logical units, with the route its
+    /// dots are sampled from.
     struct MarkInstance
     {
-        /// Where the track is, and its heading's cosine and sine.
+        /// Where the track is, its heading in degrees, and how far along its route it is, within one lap: an orbit's
+        /// bearing from its center, an eight's phase in radians, or a transit's miles flown.
         std::array<float, 4> place{};
         /// Its straight color, and in the fourth, how far its leader reaches without the scale ring cutting it.
         std::array<float, 4> color{};
         /// How far its leader and then its tick start and end along its heading, as the scale ring cuts them.
         std::array<float, 4> segments{};
-        std::array<Vec2, scope::HistoryCount> dots{};
-        /// Which of its dots, its symbol (bit 6), its leader (bit 7) and its tick (bit 8) the scale ring keeps, and
-        /// from bit 9, its glyph.
+        /// Its route, in nautical miles and degrees: an orbit's center and radius; a figure of eight's center, axis
+        /// bearing and half its length; or a transit's start, heading and span.
+        std::array<float, 4> route{};
+        /// How fast it goes along its route: an orbit's degrees, an eight's radians, or a transit's miles, a second.
+        float pace{};
+        /// Whether the scale ring keeps its symbol (bit 6), its leader (bit 7) and its tick (bit 8), and from bit 9
+        /// its glyph, and from bit 11 its route.
         std::uint32_t flags{};
+    };
+
+    /// @brief How the marks' dots are placed: from nautical miles to logical units, how far apart in time, and the
+    /// scale ring that keeps or drops them, if it clips them.
+    struct MarkView
+    {
+        /// Where ownship is, in logical units.
+        Vec2 center;
+        float unitsPerNm{};
+        /// Scope seconds from one dot to the next.
+        float interval{};
+        /// The scale ring, in target pixels.
+        std::optional<scope::Clip> clip;
     };
 
     /// @brief The tracks' marks, drawn as instances of the marks' mesh in the main pass.
@@ -121,9 +140,12 @@ namespace scopegpu
         constexpr std::uint32_t KeptSymbol = 1U << 6U;
         constexpr std::uint32_t KeptLeader = 1U << 7U;
         constexpr std::uint32_t KeptTick = 1U << 8U;
-        constexpr std::uint32_t KeptAll = (1U << 9U) - 1U;
+        constexpr std::uint32_t KeptAll = KeptSymbol | KeptLeader | KeptTick;
         constexpr std::uint32_t GlyphShift = 9U;
+        constexpr std::uint32_t RouteShift = 11U;
         constexpr float HalfTurn = 180.0F;
+        constexpr float FullTurn = 360.0F;
+        constexpr float SecondsPerHour = 3600.0F;
 
         // A mark at the origin pointing north: the one the mesh is made from.
         constexpr scope::Mark Canonical{.glyph = scope::Glyph::Circle,
@@ -277,20 +299,77 @@ namespace scopegpu
             return {.x = from.x + (distance * sine), .y = from.y - (distance * cosine)};
         }
 
-        // A mark as an instance of the marks' mesh, with the parts a style's clip keeps, and its lines cut where they
-        // leave it, as `scope::Tessellate()` keeps and cuts them.
-        auto InstanceOf(const scope::Mark& x, const MarkShape& shape, const scope::Style& style) -> MarkInstance
+        // A route as mark.vert samples it: four of its parameters, how fast it goes, and how far along it the track
+        // is at a time, as a bearing, a phase or miles flown, within one lap. See `MarkInstance`.
+        //
+        // How far along is worked out in double precision and rounded once, and the GPU steps back from it to each dot,
+        // so the dots are as exact on a scope that's run for days as on one just started: a float clock times a speed
+        // loses more of the position with every lap.
+        struct RouteRecord
         {
-            const auto angle = x.heading * std::numbers::pi_v<float> / HalfTurn;
-            const auto cosine = std::cos(angle);
-            const auto sine = std::sin(angle);
+            std::array<float, 4> route{};
+            float pace{};
+            float progress{};
+        };
+
+        // Wraps a value into [0, period), as scope's routes wrap theirs.
+        auto Lapped(double x, double period) -> float
+        {
+            const auto wrapped = std::fmod(x, period);
+            const auto lapped = static_cast<float>(wrapped < 0.0 ? wrapped + period : wrapped);
+            return std::isfinite(lapped) ? lapped : 0.0F;
+        }
+
+        auto RouteOf(const scope::Route& x, float seconds) -> RouteRecord
+        {
+            constexpr double secondsPerHour = SecondsPerHour;
+            const auto clock = static_cast<double>(seconds);
+
+            return std::visit(
+                aspire::core::Overloaded{
+                    [clock](const scope::Orbit& orbit)
+                    {
+                        const auto turn = static_cast<double>(orbit.clockwise ? 1.0F : -1.0F);
+                        const auto degrees = static_cast<double>(orbit.knots) / secondsPerHour / static_cast<double>(orbit.radius) * HalfTurn
+                                             / std::numbers::pi * turn;
+                        return RouteRecord{.route = {orbit.center.x, orbit.center.y, orbit.radius, 0.0F},
+                                           .pace = static_cast<float>(degrees),
+                                           .progress = Lapped(static_cast<double>(orbit.startBearing) + (degrees * clock), FullTurn)};
+                    },
+                    [clock](const scope::FigureEight& eight)
+                    {
+                        constexpr float half = 0.5F;
+                        const auto rate = 2.0 * std::numbers::pi / static_cast<double>(eight.seconds);
+                        return RouteRecord{.route = {eight.center.x, eight.center.y, eight.bearing, eight.length * half},
+                                           .pace = static_cast<float>(rate),
+                                           .progress = Lapped(rate * clock, 2.0 * std::numbers::pi)};
+                    },
+                    [clock](const scope::Transit& transit)
+                    {
+                        const auto speed = static_cast<double>(transit.knots) / secondsPerHour;
+                        return RouteRecord{.route = {transit.start.x, transit.start.y, transit.heading, transit.span},
+                                           .pace = static_cast<float>(speed),
+                                           .progress = Lapped(speed * clock, transit.span)};
+                    },
+                },
+                x);
+        }
+
+        // A mark as an instance of the marks' mesh, with the parts a style's clip keeps, and its lines cut where they
+        // leave it, as `scope::Tessellate()` keeps and cuts them. Its dots, the GPU samples from its route at `seconds`,
+        // and keeps or drops itself.
+        auto InstanceOf(const scope::Mark& x, const MarkShape& shape, const scope::Style& style, float seconds) -> MarkInstance
+        {
             const auto tint = scope::TintOf(x.color, 1.0F);
             const auto leaderFar = shape.leaderNear + x.leader;
-            MarkInstance instance{.place = {x.at.x, x.at.y, cosine, sine},
-                                  .color = {tint.r, tint.g, tint.b, leaderFar},
-                                  .segments = {shape.leaderNear, leaderFar, shape.tickNear, shape.tickFar},
-                                  .dots = x.dots,
-                                  .flags = static_cast<std::uint32_t>(x.glyph) << GlyphShift};
+            const auto route = RouteOf(x.route, seconds);
+            MarkInstance instance{
+                .place = {x.at.x, x.at.y, x.heading, route.progress},
+                .color = {tint.r, tint.g, tint.b, leaderFar},
+                .segments = {shape.leaderNear, leaderFar, shape.tickNear, shape.tickFar},
+                .route = route.route,
+                .pace = route.pace,
+                .flags = (static_cast<std::uint32_t>(x.glyph) << GlyphShift) | (static_cast<std::uint32_t>(x.route.index()) << RouteShift)};
 
             if (!style.clip.has_value())
             {
@@ -298,12 +377,20 @@ namespace scopegpu
                 return instance;
             }
 
+            // A mark well inside the clip keeps every part whole: its leader and tick reach furthest from the track,
+            // and its arrowheads' middles less far.
             const auto& clip = *style.clip;
+            const auto at = Scaled(x.at, style.scale);
 
-            for (std::size_t i = 0; i < std::size(x.dots); ++i)
+            if (std::hypot(at.x - clip.center.x, at.y - clip.center.y) + (std::max(leaderFar, shape.tickFar) * style.scale) + 1.0F < clip.radius)
             {
-                instance.flags |= Inside(clip, Scaled(x.dots.at(i), style.scale)) ? 1U << i : 0U;
+                instance.flags |= KeptAll;
+                return instance;
             }
+
+            const auto angle = x.heading * std::numbers::pi_v<float> / HalfTurn;
+            const auto cosine = std::cos(angle);
+            const auto sine = std::sin(angle);
 
             // A closed shape's kept or dropped whole by its middle: a circle's is its center, and an arrowhead's is
             // turned with it.
@@ -369,7 +456,8 @@ export namespace scopegpu
     ///
     /// A picture that holds its tracks' marks, rather than their shapes, has them drawn as instances of one mesh that
     /// stays the same from frame to frame: a mark at the origin pointing north, with every glyph's parts, tessellated
-    /// as scope tessellates them. Each frame only says where each mark is and which of its parts the scale ring keeps.
+    /// as scope tessellates them. Each frame only says where each mark is, which of its parts the scale ring keeps,
+    /// and the route the GPU samples its dots from.
     ///
     /// A frame is reused from one to the next, so its meshes keep their memory.
     class Frame
@@ -470,6 +558,13 @@ export namespace scopegpu
             return marksGlow_;
         }
 
+        /// @brief Reports how the marks' dots are placed from their routes, and kept.
+        /// @return The view, until the next `build()`.
+        [[nodiscard]] auto markView() const -> const MarkView&
+        {
+            return markView_;
+        }
+
         /// @brief The marks' mesh at the picture's scale.
         /// @return The mesh, which only changes when `markGeneration()` does.
         [[nodiscard]] auto markMesh() const -> const MarkMesh&
@@ -522,11 +617,12 @@ export namespace scopegpu
             closeShapes();
             prepareMarkMeshes();
             marksGlow_ = x.glow;
+            markView_ = {.center = x.center, .unitsPerNm = x.unitsPerNm, .interval = scope::HistoryInterval, .clip = style.clip};
             const auto first = static_cast<std::uint32_t>(std::size(markInstances_));
 
             for (const auto& mark : x.marks)
             {
-                markInstances_.push_back(InstanceOf(mark, markShape_, style));
+                markInstances_.push_back(InstanceOf(mark, markShape_, style, x.seconds));
             }
 
             runs_.emplace_back(MarksRun{.firstInstance = first, .instanceCount = static_cast<std::uint32_t>(std::size(markInstances_)) - first});
@@ -600,6 +696,7 @@ export namespace scopegpu
         std::optional<scope::GlowPlan> glow_;
         std::vector<MarkInstance> markInstances_;
         bool marksGlow_{};
+        MarkView markView_;
         MarkMesh markMesh_;
         MarkMesh markGlowMesh_;
         MarkShape markShape_;

@@ -112,17 +112,27 @@ export namespace scope
         float heading{};
         /// From the symbol's nose to the leader's end, in logical units.
         float leader{};
-        /// Where the track has been, in logical units, newest first.
+        /// Where the track has been, in logical units, newest first. Left out of the marks in a `Marks`, whose
+        /// renderer samples them from `route` itself.
         std::array<Vec2, HistoryCount> dots{};
+        /// The route the track flies, which its dots are where it was on, `HistoryInterval` apart.
+        Route route;
     };
 
     /// @brief The tracks' marks, where the picture would otherwise hold a glowing group of shapes for each.
+    ///
+    /// The marks leave out their dots: each is where its track was on its route, `HistoryInterval` apart before
+    /// `seconds`, in nautical miles from ownship, which is at `center` with `unitsPerNm` logical units to a mile.
     struct Marks
     {
         /// In the order the tracks are listed, which is the order they're drawn in.
         std::vector<Mark> marks;
         /// Whether they glow, as their groups would.
         bool glow{};
+        /// The scope's clock, in scope seconds.
+        float seconds{};
+        Vec2 center;
+        float unitsPerNm{};
     };
 
     /// @brief A track's data block beside its mark: its callsign over its speed, which `TextOf()` gives as a text.
@@ -537,7 +547,7 @@ namespace scope
         // for a renderer that draws them itself.
         auto AddTracks(Group& group, const Frame& frame) -> void
         {
-            Marks marks{.marks = {}, .glow = frame.glow};
+            Marks marks{.marks = {}, .glow = frame.glow, .seconds = frame.seconds, .center = frame.center, .unitsPerNm = frame.unitsPerNm};
 
             if (frame.marks)
             {
@@ -559,15 +569,17 @@ namespace scope
                           .at = ToView(frame, state.position),
                           .heading = state.heading,
                           .leader = state.knots * LeaderPerKnot,
-                          .dots = {}};
-                std::ranges::transform(History(track.route, frame.seconds), std::begin(mark.dots), [&frame](Vec2 x) { return ToView(frame, x); });
+                          .dots = {},
+                          .route = track.route};
 
+                // A renderer that draws the marks samples their dots itself.
                 if (frame.marks)
                 {
                     marks.marks.push_back(mark);
                     continue;
                 }
 
+                std::ranges::transform(History(track.route, frame.seconds), std::begin(mark.dots), [&frame](Vec2 x) { return ToView(frame, x); });
                 Group drawn{.items = {}, .clip = std::nullopt, .glow = frame.glow};
                 AddMark(drawn, mark);
                 AddGroup(group, std::move(drawn));
