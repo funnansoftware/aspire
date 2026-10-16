@@ -130,7 +130,7 @@ export namespace scope
 
     struct Track
     {
-        std::string_view callsign;
+        std::string callsign;
         Classification classification{};
         Glyph glyph{};
         Route route;
@@ -145,25 +145,6 @@ export namespace scope
 
     /// Where the scope's clock starts, so the transits are already in view.
     inline constexpr float StartSeconds = 600.0F;
-
-    inline constexpr std::array Tracks{
-        Track{.callsign = "VIPER 2",
-              .classification = Classification::Friendly,
-              .glyph = Glyph::Filled,
-              .route = Orbit{.center = {.x = 9.0F, .y = 12.0F}, .radius = 6.0F, .knots = 360.0F, .startBearing = 200.0F, .clockwise = true}},
-        Track{.callsign = "BANDIT 1",
-              .classification = Classification::Hostile,
-              .glyph = Glyph::Outline,
-              .route = FigureEight{.center = {.x = -15.0F, .y = 9.0F}, .length = 22.0F, .bearing = 120.0F, .seconds = 640.0F}},
-        Track{.callsign = "HEAVY 31",
-              .classification = Classification::Neutral,
-              .glyph = Glyph::Filled,
-              .route = Transit{.start = {.x = -55.0F, .y = -50.0F}, .heading = 52.0F, .knots = 300.0F, .span = 150.0F}},
-        Track{.callsign = "TRACK 4",
-              .classification = Classification::Unknown,
-              .glyph = Glyph::Circle,
-              .route = Orbit{.center = {}, .radius = 28.0F, .knots = 240.0F, .startBearing = 120.0F, .clockwise = false}},
-    };
 
     /// The ranges the scope steps between, in nautical miles from ownship to the scale ring.
     inline constexpr std::array RangeSteps{10.0F, 20.0F, 40.0F, 80.0F};
@@ -198,6 +179,48 @@ namespace scope
         constexpr float RightAngle = 90.0F;
         constexpr float Half = 0.5F;
         constexpr float Twice = 2.0F;
+
+        // Generated traffic is placed this close to ownship, and flies no further than its reach from where it's
+        // placed, so all of it stays inside the scale ring at the initial range.
+        constexpr float TrafficRadius = 34.0F;
+        constexpr float TrafficReach = 5.0F;
+        constexpr float TrafficSlowest = 180.0F;
+        constexpr float TrafficFastest = 420.0F;
+        constexpr float TrafficShortestEight = 400.0F;
+        constexpr float TrafficLongestEight = 800.0F;
+        constexpr std::uint32_t TrafficSeed = 0x5C09E;
+
+        // Each place is this far round from the last, as seeds in a sunflower are, which spreads them evenly.
+        constexpr float GoldenAngle = 137.507764F;
+
+        // A track the scope starts with, its callsign a literal so that the list of them can be a constant.
+        struct StartingTrack
+        {
+            std::string_view callsign;
+            Classification classification{};
+            Glyph glyph{};
+            Route route;
+        };
+
+        constexpr std::array StartingTracks{
+            StartingTrack{
+                .callsign = "VIPER 2",
+                .classification = Classification::Friendly,
+                .glyph = Glyph::Filled,
+                .route = Orbit{.center = {.x = 9.0F, .y = 12.0F}, .radius = 6.0F, .knots = 360.0F, .startBearing = 200.0F, .clockwise = true}},
+            StartingTrack{.callsign = "BANDIT 1",
+                          .classification = Classification::Hostile,
+                          .glyph = Glyph::Outline,
+                          .route = FigureEight{.center = {.x = -15.0F, .y = 9.0F}, .length = 22.0F, .bearing = 120.0F, .seconds = 640.0F}},
+            StartingTrack{.callsign = "HEAVY 31",
+                          .classification = Classification::Neutral,
+                          .glyph = Glyph::Filled,
+                          .route = Transit{.start = {.x = -55.0F, .y = -50.0F}, .heading = 52.0F, .knots = 300.0F, .span = 150.0F}},
+            StartingTrack{.callsign = "TRACK 4",
+                          .classification = Classification::Unknown,
+                          .glyph = Glyph::Circle,
+                          .route = Orbit{.center = {}, .radius = 28.0F, .knots = 240.0F, .startBearing = 120.0F, .clockwise = false}},
+        };
 
         auto Radians(float degrees) -> float
         {
@@ -317,6 +340,84 @@ export namespace scope
         }
 
         return dots;
+    }
+
+    /// @brief Makes the tracks a scope shows until it's given others.
+    /// @return Four tracks, one of each classification but ownship's, flying every kind of route.
+    [[nodiscard]] auto DefaultTracks() -> std::vector<Track>
+    {
+        return StartingTracks
+               | std::views::transform(
+                   [](const StartingTrack& x)
+                   { return Track{.callsign = std::string{x.callsign}, .classification = x.classification, .glyph = x.glyph, .route = x.route}; })
+               | std::ranges::to<std::vector>();
+    }
+
+    /// @brief Makes a crowd of tracks, to see how a scope copes with many.
+    ///
+    /// The tracks are spread evenly over a disc inside the scale ring at the initial range, and stay inside it, with
+    /// every route, glyph and classification mixed among them. The same count always makes the same tracks.
+    ///
+    /// @param count How many tracks to make.
+    /// @return The tracks, with callsigns numbered from `TRK 001`.
+    [[nodiscard]] auto Traffic(std::size_t count) -> std::vector<Track>
+    {
+        constexpr std::array classifications{Classification::Friendly, Classification::Neutral, Classification::Hostile, Classification::Unknown};
+        constexpr std::array glyphs{Glyph::Circle, Glyph::Outline, Glyph::Filled};
+        constexpr auto routes = std::variant_size_v<Route>;
+        constexpr std::uint32_t fractionBits = 24;
+
+        // Seeded with a constant on purpose: the same count must make the same tracks in every app and every run.
+        // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp)
+        std::mt19937 random{TrafficSeed};
+        // Between two values, from the generator's bits alone, so every standard library makes the same tracks.
+        const auto between = [&random](float low, float high)
+        {
+            constexpr auto shift = static_cast<std::uint32_t>(std::numeric_limits<std::uint32_t>::digits) - fractionBits;
+            const auto fraction = static_cast<float>(random() >> shift) / static_cast<float>(1U << fractionBits);
+            return low + ((high - low) * fraction);
+        };
+
+        std::vector<Track> tracks;
+        tracks.reserve(count);
+
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const auto out = TrafficRadius * std::sqrt((static_cast<float>(i) + Half) / static_cast<float>(count));
+            const auto place = Scale(Toward(static_cast<float>(i) * GoldenAngle), out);
+            const auto heading = between(0.0F, FullCircle);
+            const auto knots = between(TrafficSlowest, TrafficFastest);
+            Route route;
+
+            switch (i % routes)
+            {
+                case 0:
+                    route = Orbit{.center = place,
+                                  .radius = between(TrafficReach * Half, TrafficReach),
+                                  .knots = knots,
+                                  .startBearing = heading,
+                                  .clockwise = i % 2 == 0};
+                    break;
+                case 1:
+                    route = FigureEight{.center = place,
+                                        .length = between(TrafficReach, TrafficReach * Twice),
+                                        .bearing = heading,
+                                        .seconds = between(TrafficShortestEight, TrafficLongestEight)};
+                    break;
+                default:
+                    // Back and forth across the place, so the start-over jump stays near it.
+                    route = Transit{
+                        .start = Add(place, Scale(Toward(heading), -TrafficReach)), .heading = heading, .knots = knots, .span = TrafficReach * Twice};
+                    break;
+            }
+
+            tracks.push_back({.callsign = std::format("TRK {:03}", i + 1),
+                              .classification = classifications.at(i % std::size(classifications)),
+                              .glyph = glyphs.at((i / routes) % std::size(glyphs)),
+                              .route = route});
+        }
+
+        return tracks;
     }
 
     /// @brief Reports a position's bearing from ownship.
@@ -592,7 +693,22 @@ export namespace scope
             return glow_;
         }
 
+        /// @brief Replaces the tracks the scope shows.
+        /// @param x The tracks, in the order the track table lists them.
+        auto setTracks(std::vector<Track> x) -> void
+        {
+            tracks_ = std::move(x);
+        }
+
+        /// @brief Reports the tracks the scope shows: `DefaultTracks()`, until `setTracks()` replaces them.
+        /// @return The tracks, in the order the track table lists them.
+        [[nodiscard]] auto getTracks() const -> std::span<const Track>
+        {
+            return tracks_;
+        }
+
     private:
+        std::vector<Track> tracks_{DefaultTracks()};
         RangeScale range_;
         float seconds_{StartSeconds};
         float pingSeconds_{};

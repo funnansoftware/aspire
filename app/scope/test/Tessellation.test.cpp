@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+// Views are called on their ranges rather than piped to: here, GCC 15 can't deduce a pipe's type across the imported
+// std module, and fails with "use of operator| before deduction of auto".
+
 import std;
 import scope.mesh;
 import scope.picture;
@@ -99,7 +102,7 @@ TEST(Tessellate, CutsAnOpenLineAtTheClip)
 
     // The cut end is squared off half the width past the edge, plus the fringe.
     const auto reach = [](const scope::Mesh& mesh)
-    { return std::ranges::max(mesh.vertices() | std::views::transform([](const scope::Vertex& x) { return x.position.x; })); };
+    { return std::ranges::max(std::views::transform(mesh.vertices(), [](const scope::Vertex& x) { return x.position.x; })); };
     EXPECT_LE(reach(clipped), Unit.radius + width);
     EXPECT_GT(reach(whole), Far);
 }
@@ -117,7 +120,7 @@ TEST(Tessellate, ScalesAndWidensStrokes)
     scope::Tessellate(mesh, Line({.x = 0.0F, .y = height}, {.x = DiscRadius, .y = height}, width), style);
 
     // A stroke's outermost vertices are half its width, and half the fringe's pixel, from its middle.
-    const auto top = std::ranges::min(mesh.vertices() | std::views::transform([](const scope::Vertex& x) { return x.position.y; }));
+    const auto top = std::ranges::min(std::views::transform(mesh.vertices(), [](const scope::Vertex& x) { return x.position.y; }));
     EXPECT_NEAR(top, (height * scale) - (((width * scale) + widen) * Half) - Half, Tolerance);
 }
 
@@ -135,7 +138,7 @@ TEST(Tessellate, FillsAStrokedShapeWithoutFadingItsEdge)
 
     // Under a stroke, every fill vertex is solid; alone, each corner has a clear one outside it.
     const auto points = static_cast<std::size_t>(scope::CircleSegments(DiscRadius));
-    EXPECT_TRUE(std::ranges::all_of(stroked.vertices() | std::views::take(points), [](const scope::Vertex& x) { return x.tint.a == 1.0F; }));
+    EXPECT_TRUE(std::ranges::all_of(std::views::take(stroked.vertices(), points), [](const scope::Vertex& x) { return x.tint.a == 1.0F; }));
     EXPECT_EQ(std::ranges::count_if(filled.vertices(), [](const scope::Vertex& x) { return x.tint.a == 0.0F; }), std::ssize(filled.vertices()) / 2);
 }
 

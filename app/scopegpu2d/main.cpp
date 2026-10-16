@@ -54,6 +54,10 @@ namespace
         // Starts frozen, at the same moment every run, so captures can be compared.
         bool paused{};
         bool noGlow{};
+        // Holds the range, so the same tracks stay inside the scale ring as they fly.
+        bool noCycle{};
+        // Shows this many generated tracks in place of the usual ones, or the usual ones if none.
+        std::size_t tracks{};
         // Draws into a texture rather than a window, as where there's no display to show one.
         bool offscreen{};
         int width{WindowWidth};
@@ -76,12 +80,43 @@ namespace
         return by != std::string_view::npos && ParsePositive(x.substr(0, by), options.width) && ParsePositive(x.substr(by + 1), options.height);
     }
 
+    // An argument that turns an option on.
+    struct Switch
+    {
+        std::string_view name;
+        bool Options::* option;
+    };
+
+    constexpr auto Switches = std::to_array<Switch>({
+        {.name = "--benchmark", .option = &Options::benchmark},
+        {.name = "--paused", .option = &Options::paused},
+        {.name = "--no-glow", .option = &Options::noGlow},
+        {.name = "--no-cycle", .option = &Options::noCycle},
+        {.name = "--offscreen", .option = &Options::offscreen},
+    });
+
+    // Turns on the option an argument names. False if it names none.
+    auto ParseSwitch(std::string_view argument, Options& options) -> bool
+    {
+        for (const auto& x : Switches)
+        {
+            if (x.name == argument)
+            {
+                options.*(x.option) = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Parses the command line. Empty if the app should exit, with `result` saying how.
     auto Parse(std::span<char*> arguments, SDL_AppResult& result) -> std::optional<Options>
     {
         constexpr std::string_view framesPrefix = "--frames=";
         constexpr std::string_view capturePrefix = "--capture=";
         constexpr std::string_view sizePrefix = "--size=";
+        constexpr std::string_view tracksPrefix = "--tracks=";
         Options options;
 
         const auto reject = [&result](std::string_view message) -> std::optional<Options>
@@ -96,33 +131,24 @@ namespace
             if (argument == "--help")
             {
                 Log(SDL_LOG_PRIORITY_INFO,
-                    "Usage: scopegpu2d [--paused] [--no-glow] [--size=WxH] [--offscreen] [--frames=N [--capture=FILE.png] [--benchmark]]  (N "
-                    "must be positive; omit for interactive mode)");
+                    "Usage: scopegpu2d [--paused] [--no-glow] [--no-cycle] [--tracks=N] [--size=WxH] [--offscreen] [--frames=N [--capture=FILE.png] "
+                    "[--benchmark]]  (N must be positive; omit for interactive mode)");
                 result = SDL_APP_SUCCESS;
                 return std::nullopt;
             }
 
-            if (argument == "--benchmark")
+            if (ParseSwitch(argument, options))
             {
-                options.benchmark = true;
                 continue;
             }
 
-            if (argument == "--paused")
+            if (argument.starts_with(tracksPrefix))
             {
-                options.paused = true;
-                continue;
-            }
+                if (!ParsePositive(argument.substr(std::size(tracksPrefix)), options.tracks))
+                {
+                    return reject("--tracks requires a positive integer");
+                }
 
-            if (argument == "--no-glow")
-            {
-                options.noGlow = true;
-                continue;
-            }
-
-            if (argument == "--offscreen")
-            {
-                options.offscreen = true;
                 continue;
             }
 
@@ -363,6 +389,13 @@ namespace
 
     auto KeyPressed(App& app, SDL_Keycode key) -> SDL_AppResult
     {
+        // A run of a set length keeps the scene it started with, so a stray key can't change what's measured or
+        // captured. It can still be quit.
+        if (app.options.frames != 0 && key != SDLK_ESCAPE)
+        {
+            return SDL_APP_CONTINUE;
+        }
+
         switch (key)
         {
             case SDLK_UP:
@@ -424,6 +457,14 @@ auto SDL_AppInit(void** appstate, int argc, char** argv) -> SDL_AppResult
     if (app.options.noGlow)
     {
         app.scope.toggleGlow();
+    }
+    if (app.options.noCycle && app.scope.getRange().getCycling())
+    {
+        app.scope.toggleCycling();
+    }
+    if (app.options.tracks != 0)
+    {
+        app.scope.setTracks(scope::Traffic(app.options.tracks));
     }
     SDL_SetAppMetadata("Scope GPU 2D", "0.1.0", "org.aspire.scopegpu2d");
 #ifndef SDL_PLATFORM_EMSCRIPTEN
@@ -499,8 +540,9 @@ auto SDL_AppEvent(void* appstate, SDL_Event* event) -> SDL_AppResult
             break;
         case SDL_EVENT_MOUSE_WHEEL:
             // Scrolling up zooms in, to a shorter range. A trackpad sends many fractional scrolls per swipe, so only
-            // whole ticks step it, or one swipe would run through every range at once.
-            if (event->wheel.integer_y != 0)
+            // whole ticks step it, or one swipe would run through every range at once. A run of a set length
+            // keeps its range, as it ignores keys.
+            if (event->wheel.integer_y != 0 && app.options.frames == 0)
             {
                 app.scope.stepRange(event->wheel.integer_y > 0 ? -1 : 1);
             }

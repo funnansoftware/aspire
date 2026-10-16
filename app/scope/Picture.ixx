@@ -199,6 +199,10 @@ namespace scope
         constexpr float ModeTop = 54.0F;
         constexpr float TableTop = 104.0F;
         constexpr float RowHeight = 22.0F;
+        // The track table lists this many tracks at most, then how many more there are, so it stays above the details.
+        constexpr std::size_t TableRows = 10;
+        // The table's and the details' characters across, which the readouts right-align on.
+        constexpr std::size_t TableWidth = 22;
         constexpr float SectionGap = 18.0F;
         constexpr float GlassReach = 1.6F;
         // The backdrop bleeds past the edges, so no edge pixel is antialiased against the target's old contents.
@@ -226,6 +230,7 @@ namespace scope
             Palette palette;
             // The range at the scale ring, in nautical miles.
             float range{};
+            std::span<const Track> tracks;
             // The tracks' and the pings' clocks.
             float seconds{};
             float pingSeconds{};
@@ -434,7 +439,7 @@ namespace scope
         // in a glowing group of its own.
         auto AddTracks(Group& group, const Frame& frame) -> void
         {
-            for (const auto& track : Tracks)
+            for (const auto& track : frame.tracks)
             {
                 const auto state = Sample(track.route, frame.seconds);
 
@@ -470,7 +475,7 @@ namespace scope
             const auto base = ScaleRadius + CaretGap;
             const auto spread = Degrees(CaretSize * CaretWidthShare / base);
 
-            for (const auto& track : Tracks)
+            for (const auto& track : frame.tracks)
             {
                 const auto state = Sample(track.route, frame.seconds);
                 const auto color = frame.palette.colorOf(track.classification);
@@ -533,7 +538,7 @@ namespace scope
             AddText(group, frame,
                     Readout(std::format("{:<9} {:>7} {:>4}", "TRACK", "BRG/RNG", "KT"), {.x = right, .y = row}, FurnitureColor, TopRight));
 
-            for (const auto& track : Tracks)
+            for (const auto& track : frame.tracks | std::views::take(TableRows))
             {
                 row += RowHeight;
                 const auto state = Sample(track.route, frame.seconds);
@@ -541,6 +546,13 @@ namespace scope
                 AddText(group, frame,
                         Readout(std::format("{:<9} {:03}/{:<3.0f} {:>4.0f}", track.callsign, bearing, RangeOf(state.position), state.knots),
                                 {.x = right, .y = row}, frame.palette.colorOf(track.classification), TopRight));
+            }
+
+            if (const auto more = std::size(frame.tracks) - std::min(std::size(frame.tracks), TableRows); more > 0)
+            {
+                row += RowHeight;
+                AddText(group, frame,
+                        Readout(std::format("{:<{}}", std::format("+{} MORE", more), TableWidth), {.x = right, .y = row}, FurnitureColor, TopRight));
             }
 
             // How it's drawn, in a block under the tracks, padded to the same width.
@@ -598,6 +610,7 @@ export namespace scope
                           .unitsPerNm = ScaleRadius / range,
                           .palette = scope.getPalette(),
                           .range = range,
+                          .tracks = scope.getTracks(),
                           .seconds = scope.getSeconds(),
                           .pingSeconds = scope.getPingSeconds(),
                           .text = view.text,
