@@ -53,7 +53,7 @@
     ],
     "features": {
         "ibus": {
-            "description": "IBus input-method support for SDL3 on Linux. Its D-Bus and systemd dependencies do not build against the Steam Runtime sniper glibc, so the SteamOS preset turns it off.",
+            "description": "IBus input-method support for SDL3 on Linux. The SteamOS preset turns it off, so SteamOS builds skip its D-Bus and systemd dependencies.",
             "dependencies": [
                 {
                     "name": "sdl3",

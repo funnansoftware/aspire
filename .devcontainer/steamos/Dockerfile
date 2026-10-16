@@ -1,4 +1,4 @@
-# Steam Deck build container — Steam Linux Runtime 3.0 "sniper".
+# Steam Deck build container — Steam Linux Runtime 4.0 "steamrt4".
 #
 # This image exists for BINARY COMPATIBILITY with the Steam Deck, not for the
 # newest toolchain. A native binary's minimum glibc equals the glibc of the
@@ -6,37 +6,33 @@
 # bleeding-edge glibc; anything built there can fail on the Deck with
 # "version `GLIBC_x.xx' not found".
 #
-# Sniper is Steam Linux Runtime 3.0 — the container Steam guarantees at game
-# launch on the Deck and every other Steam platform. It is Debian 11 based
-# (glibc 2.31), below the Deck's, and glibc is forward-compatible, so a binary
-# built here runs both directly in SteamOS Desktop Mode and inside the Steam
-# runtime container.
+# steamrt4 is Steam Linux Runtime 4.0, the container Steam runs native Linux
+# games in. It is Debian 13 based (glibc 2.41), and glibc is forward-compatible,
+# so a binary built here runs inside the Steam Linux Runtime 4.0 container on
+# every Steam platform, and directly in SteamOS Desktop Mode from SteamOS 3.8
+# (glibc 2.41) on.
 #
-# Image ref: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
+# Image ref: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/steamrt4/README.md
 
-ARG SNIPER_IMAGE=registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+# Pinned to a release and its digest so the image changes only when this file
+# does: `latest` moves with every Steam Runtime release, and each move would
+# rebuild GCC below. This is the stable release, the one the
+# `latest-container-runtime-depot` tag points at; the README says how to update.
+ARG STEAMRT_IMAGE=registry.gitlab.steamos.cloud/steamrt/steamrt4/sdk:4.0.20260928.262390@sha256:0c056268506cc0152b6dad5756a52075ee1a3e86845d35d9c7acecb9971842e1
 
 # ---------------------------------------------------------------------------
-# Stage 1: GCC 15 against sniper's glibc.
+# Stage 1: GCC 15 against steamrt4's glibc.
 #
 # aspire requires C++23 `import std;` with no header fallback. CMake supports
-# that for GCC 15+ (libstdc++'s std module) and Clang with libc++. Sniper's repos
-# stop at Valve's gcc-14 backport — no gcc-15, and the only clang is Debian 11's
-# clang-11 — and LLVM's prebuilt releases need a newer glibc than sniper's, so
-# the one way to keep the glibc floor is to build the compiler here. Bootstrap is
-# disabled, so gcc-14 is the only compiler that builds it; the result still links
-# only against glibc 2.31.
+# that for GCC 15+ (libstdc++'s std module) and Clang with libc++. steamrt4
+# ships Debian 13's gcc-14, and neither Debian 13 nor Valve's repo has gcc-15,
+# so the one way to keep the glibc floor with GCC is to build the compiler here.
+# Bootstrap is disabled, so gcc-14 is the only compiler that builds it; the
+# result still links only against glibc 2.41.
 # ---------------------------------------------------------------------------
-FROM ${SNIPER_IMAGE} AS gcc
+FROM ${STEAMRT_IMAGE} AS gcc
 
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Debian 11 has reached end of life: its security suite still publishes an index,
-# but the package files behind it are gone, so apt resolves to security versions
-# it cannot download (404). Drop that source in every stage. The SDK already
-# carries the patched packages it was built with, and everything installed below
-# resolves from bullseye proper and Valve's repo.
-RUN sed -i '/debian-security/d' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -86,28 +82,27 @@ RUN mkdir /tmp/gcc \
 # ---------------------------------------------------------------------------
 # Stage 2: the build environment.
 # ---------------------------------------------------------------------------
-FROM ${SNIPER_IMAGE}
+FROM ${STEAMRT_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# See the gcc stage: the end-of-life security source cannot be fetched from.
-RUN sed -i '/debian-security/d' /etc/apt/sources.list
-
 # Base utilities and build tooling — the same set as the main Dockerfile, plus
 # binutils for the objdump the CI glibc-floor check runs over the installed tree.
-# The sniper SDK ships most of this already; installing explicitly keeps the
+# The steamrt4 SDK ships most of this already; installing explicitly keeps the
 # image self-describing and resilient to SDK drift. The gmp/mpfr/mpc runtime
-# libraries are what the GCC copied in below links against. python3-venv, which the
-# main Dockerfile also installs, is left out: it must match the SDK's python3.9
-# exactly, and that security build can no longer be downloaded (see the README).
+# libraries are what the GCC copied in below links against. Debian 13's Ninja
+# (1.12) is new enough for C++ modules, which need >= 1.11 for CMake's dyndep
+# support.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
     make \
+    ninja-build \
     binutils \
     pkg-config \
     python3 \
+    python3-venv \
     zip \
     unzip \
     xz-utils \
@@ -117,9 +112,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmpc3 \
     && rm -rf /var/lib/apt/lists/*
 
-# GCC 15. It installs under /usr/local, ahead of sniper's gcc-10 on PATH, so
+# GCC 15. It installs under /usr/local, ahead of the SDK's gcc-14 on PATH, so
 # `gcc`/`g++` — which the shared compiler-gcc preset names — resolve to it. Its
-# libstdc++ is newer than sniper's, so register it for any dynamically linked
+# libstdc++ is newer than steamrt4's, so register it for any dynamically linked
 # helper built and run inside the container; the steamos preset links the C++
 # runtime statically, so shipped binaries do not depend on it.
 COPY --from=gcc /gcc-root/usr/local /usr/local
@@ -127,7 +122,7 @@ RUN echo /usr/local/lib64 > /etc/ld.so.conf.d/gcc-15.conf && ldconfig
 
 # CMake's compiler detection honors CC/CXX, and vcpkg's port builds go through
 # that detection — this points the dependency tree at GCC 15 rather than at the
-# SDK's gcc-10, which plain `cc`/`c++` still resolve to.
+# SDK's gcc-14, which plain `cc`/`c++` still resolve to.
 ENV CC=gcc \
     CXX=g++
 
@@ -148,7 +143,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Modern CMake. CMakeLists requires CMake >= 4.4.2 for experimental `import std`;
-# Debian 11 ships 3.18 and Kitware's apt repo is Ubuntu-only, so install the
+# Debian 13 ships 3.31 and Kitware's apt repo is Ubuntu-only, so install the
 # official upstream binary release. Keep this aligned with the main Dockerfile.
 ARG CMAKE_VERSION=4.4.2
 RUN mkdir /tmp/cmake-install \
@@ -159,13 +154,3 @@ RUN mkdir /tmp/cmake-install \
     && tar -xzf "cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" --strip-components=1 -C /usr/local \
     && cd / \
     && rm -rf /tmp/cmake-install
-
-# Modern Ninja. C++ modules need Ninja >= 1.11 for CMake's dyndep support;
-# Debian 11 ships 1.10.1. The upstream release binary is built on an older glibc
-# than sniper's, so it runs here.
-ARG NINJA_VERSION=1.13.2
-ARG NINJA_SHA256=5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6
-RUN curl -fsSLo /tmp/ninja.zip "https://github.com/ninja-build/ninja/releases/download/v${NINJA_VERSION}/ninja-linux.zip" \
-    && echo "${NINJA_SHA256}  /tmp/ninja.zip" | sha256sum --check \
-    && unzip -o /tmp/ninja.zip -d /usr/local/bin \
-    && rm /tmp/ninja.zip
