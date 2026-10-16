@@ -35,6 +35,7 @@ endif()
 # The 2d shaders are scopegpu2d's: the same work as their namesakes, but drawn through SDL's renderer, behind its own
 # vertex shaders and into one target at a time. Both sets share what's in shaders/common.
 set(scopegpuShaders
+    block.vert
     blur.frag
     blur2d.frag
     composite.frag
@@ -42,6 +43,7 @@ set(scopegpuShaders
     fullscreen.vert
     glow.frag
     glow2d.frag
+    mark.vert
     shape.frag
     shape.vert
     text.frag
@@ -138,13 +140,15 @@ target_sources(scopegpu-shaders PUBLIC
 )
 target_link_libraries(scopegpu-shaders PUBLIC scopegpu-gpu)
 
-# A frame of the picture laid out for the GPU: scope's triangles, and what's drawn in what order.
+# A frame of the picture laid out for the GPU: scope's triangles, and what's drawn in what order. The glow's triangles
+# are worked out on a thread of their own, which older glibc needs libpthread for.
+find_package(Threads REQUIRED)
 add_library(scopegpu-frame STATIC)
 target_sources(scopegpu-frame PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
         Frame.ixx
 )
-target_link_libraries(scopegpu-frame PUBLIC scope-glow scope-tessellation)
+target_link_libraries(scopegpu-frame PUBLIC scope-glow scope-tessellation Threads::Threads)
 
 # Rectangles packed into an atlas on shelves.
 add_library(scopegpu-shelves STATIC)

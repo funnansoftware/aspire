@@ -75,6 +75,29 @@ export namespace scopegpu
         Vec2 uv;
     };
 
+    /// @brief A glyph of a data block as the GPU draws it: an instance of a glyph's quad, which the GPU places at a
+    /// whole pixel as `Glyphs::add()` places glyphs.
+    struct BlockGlyph
+    {
+        /// Where the block's first line starts and its baseline is, in target pixels, and the glyph's column and line.
+        std::array<float, 4> place{};
+        /// The glyph's quad from its pen position: left, top, width and height, in pixels.
+        std::array<float, 4> quad{};
+        /// Where it is in the atlas, from 0 to 1: left, top, right and bottom.
+        std::array<float, 4> uv{};
+        /// Straight alpha.
+        std::array<float, 4> color{};
+    };
+
+    /// @brief How a run of data blocks' glyphs step from where their blocks start: by a column, by a line, and up by
+    /// the font's ascent, in pixels.
+    struct BlockMetrics
+    {
+        float advance{};
+        float lineSkip{};
+        float ascent{};
+    };
+
     /// @brief A glyph's pixels to copy into the atlas: where they are in the staged bytes, and where they go.
     struct GlyphUpload
     {
@@ -92,8 +115,9 @@ export namespace scopegpu
     /// engine would upload each new glyph in a command buffer of its own; this one stages them for the frame's copy
     /// pass instead.
     ///
-    /// Each frame, `begin()`, `add()` the texts in drawing order, copy `staged()` into `atlas()` as `uploads()` say,
-    /// and draw `indices()` of `vertices()`.
+    /// Each frame, `begin()`, `add()` the texts and `addBlocks()` the data blocks in drawing order, copy `staged()` into
+    /// `atlas()` as `uploads()` say, and draw `indices()` of `vertices()` and an instance of a glyph's quad for each of
+    /// `blockGlyphs()`.
     class Glyphs
     {
     public:
@@ -193,6 +217,7 @@ export namespace scopegpu
             indices_.clear();
             uploads_.clear();
             staged_.clear();
+            blockGlyphs_.clear();
 
             if (!ready())
             {
@@ -208,8 +233,7 @@ export namespace scopegpu
 
             if (full_ || packer_.used() > AtlasClearShare)
             {
-                packer_.clear();
-                packed_.clear();
+                clearAtlas();
                 full_ = false;
             }
 
@@ -227,88 +251,77 @@ export namespace scopegpu
         /// @return `false` if SDL_ttf failed; `SDL_GetError()` says why.
         auto add(const scope::Text& x, float scale) -> bool
         {
-            auto* face = font(x, scale);
+            auto* face = font(x.size, scale);
 
             if (face == nullptr)
             {
                 return true;
             }
 
-            const auto pixels = x.size * scale * PointsToPixels;
-            const auto advance = metrics_.advance * pixels;
-            const auto lineSkip = metrics_.lineSkip * pixels;
-            auto lines = 1;
-            auto columns = 0;
-            auto longest = 0;
-
-            for (const auto c : x.text)
-            {
-                // Bytes that continue a character don't count.
-                if (c == '\n')
-                {
-                    ++lines;
-                    columns = 0;
-                }
-                else if ((static_cast<unsigned char>(c) & ContinuationMask) != ContinuationByte)
-                {
-                    longest = std::max(longest, ++columns);
-                }
-            }
-
-            const auto left = (x.at.x * scale) - (x.anchor.x * advance * static_cast<float>(longest));
-            const auto height = (metrics_.height * pixels) + (lineSkip * static_cast<float>(lines - 1));
-            const auto baseline = (x.at.y * scale) - (x.anchor.y * height) + (metrics_.ascent * pixels);
+            const auto metrics = metricsOf(x.size, scale, face);
+            const auto start = place(x.at, x.anchor, extentOf(x.text), metrics, scale);
             const auto tint = scope::TintOf(x.color, x.opacity);
-            const auto ascent = static_cast<float>(TTF_GetFontAscent(face));
-            const auto* next = x.text.c_str();
-            auto remaining = std::size(x.text);
-            auto line = 0;
-            auto column = 0;
 
-            while (remaining > 0)
+            return forEachGlyph(x, face,
+                                [&](int column, int line, const TTF_CopyOperation& operation)
+                                {
+                                    const Vec2 at{.x = std::round(start.x + (metrics.advance * static_cast<float>(column))),
+                                                  .y = std::round(start.y + (metrics.lineSkip * static_cast<float>(line))) - metrics.ascent};
+                                    addGlyph(operation, at, tint);
+                                });
+        }
+
+        /// @brief Adds data blocks' glyphs, each as an instance of a glyph's quad, laid out as `add()` lays out their
+        /// texts.
+        ///
+        /// A block's glyphs are laid out once and kept, by the track it belongs to, until its text changes, or the
+        /// atlas or the scale does: after that, each frame only places them where the block is.
+        ///
+        /// @param x The blocks, in logical units.
+        /// @param scale Target pixels per logical unit.
+        /// @return How the blocks' glyphs step from where each starts, which they're drawn with; empty if SDL_ttf
+        /// failed, and `SDL_GetError()` says why. Without a font there's nothing to add, and nothing fails.
+        auto addBlocks(const scope::DataBlocks& x, float scale) -> std::optional<BlockMetrics>
+        {
+            auto* face = font(x.size, scale);
+
+            if (face == nullptr || std::empty(x.blocks))
             {
-                const auto* start = next;
-                const auto codepoint = SDL_StepUTF8(&next, &remaining);
-                const auto bytes = std::string_view{start, static_cast<std::size_t>(next - start)};
+                return BlockMetrics{};
+            }
 
-                if (codepoint == '\n')
+            const auto metrics = metricsOf(x.size, scale, face);
+
+            for (const auto& block : x.blocks)
+            {
+                const auto* laidOut = layOut(block, scale, face);
+
+                if (laidOut == nullptr)
                 {
-                    ++line;
-                    column = 0;
-                    continue;
+                    return std::nullopt;
                 }
 
-                const Vec2 at{.x = std::round(left + (advance * static_cast<float>(column))),
-                              .y = std::round(baseline + (lineSkip * static_cast<float>(line))) - ascent};
-                ++column;
+                const auto start = place(block.at, x.anchor, laidOut->extent, metrics, scale);
+                const auto tint = scope::TintOf(block.color, 1.0F);
+                const std::array<float, 4> colored{1.0F, 1.0F, 1.0F, tint.a};
 
-                if (codepoint == ' ')
+                for (const auto& cell : laidOut->cells)
                 {
-                    continue;
-                }
-
-                auto* text = glyphText(x, face, bytes, codepoint);
-
-                if (text == nullptr || !TTF_UpdateText(text))
-                {
-                    return false;
-                }
-
-                const auto& internal = *text->internal;
-
-                // SDL_ttf hands a text's drawing over as a union of operations, tagged by their first member.
-                for (const auto& operation : std::span{internal.ops, static_cast<std::size_t>(std::max(internal.num_ops, 0))})
-                {
-                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-                    if (operation.cmd == TTF_DRAW_COMMAND_COPY)
-                    {
-                        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-                        addGlyph(operation.copy, at, tint);
-                    }
+                    blockGlyphs_.push_back({.place = {start.x, start.y, cell.column, cell.line},
+                                            .quad = cell.quad,
+                                            .uv = cell.uv,
+                                            .color = cell.colored ? colored : std::array{tint.r, tint.g, tint.b, tint.a}});
                 }
             }
 
-            return true;
+            return BlockMetrics{.advance = metrics.advance, .lineSkip = metrics.lineSkip, .ascent = metrics.ascent};
+        }
+
+        /// @brief The frame's data blocks' glyphs, so far.
+        /// @return The instances, one for each glyph.
+        [[nodiscard]] auto blockGlyphs() const -> const std::vector<BlockGlyph>&
+        {
+            return blockGlyphs_;
         }
 
         /// @brief Reports whether a glyph didn't fit in the atlas since the last `begin()`, and was left out.
@@ -393,6 +406,45 @@ export namespace scopegpu
             float lineSkip{};
         };
 
+        // A size of text's metrics in pixels at a scale: its size, how far a column and a line step, and the ascent of
+        // its font, sized to it, which glyphs are placed from.
+        struct TextMetrics
+        {
+            float pixels{};
+            float advance{};
+            float lineSkip{};
+            float ascent{};
+        };
+
+        // How many lines a text has, and how many characters its longest has.
+        struct TextExtent
+        {
+            int lines{};
+            int longest{};
+        };
+
+        // A glyph of a laid-out data block: its column and line, and its quad and where it is in the atlas.
+        struct GlyphCell
+        {
+            float column{};
+            float line{};
+            std::array<float, 4> quad{};
+            std::array<float, 4> uv{};
+            // A color glyph, drawn white at the text's alpha rather than tinted.
+            bool colored{};
+        };
+
+        // A track's data block as it was last laid out, and what for: its text, the atlas's contents, and the scale.
+        struct LaidOutBlock
+        {
+            std::string callsign;
+            float knots{};
+            float scale{};
+            std::uint32_t atlas{std::numeric_limits<std::uint32_t>::max()};
+            TextExtent extent;
+            std::vector<GlyphCell> cells;
+        };
+
         static auto createAtlas(SDL_GPUDevice* device, std::uint32_t size) -> Texture
         {
             return CreateTexture(device, SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM, {.width = size, .height = size}, SDL_GPU_TEXTUREUSAGE_SAMPLER);
@@ -414,25 +466,175 @@ export namespace scopegpu
             return opened;
         }
 
-        // The font for a text, sized in pixels to the frame: one for each size of text, opened the first time it's
+        // The font for a size of text, sized in pixels to the frame: one for each size, opened the first time it's
         // asked for and resized after that, as scope's are.
-        auto font(const scope::Text& x, float scale) -> TTF_Font*
+        auto font(float size, float scale) -> TTF_Font*
         {
             if (!ready())
             {
                 return nullptr;
             }
 
-            const auto size = x.size * scale * PointsToPixels;
-            auto found = fonts_.find(x.size);
+            const auto pixels = size * scale * PointsToPixels;
+            auto found = fonts_.find(size);
 
             if (found == std::end(fonts_))
             {
-                found = fonts_.emplace(x.size, openFont(size)).first;
+                found = fonts_.emplace(size, openFont(pixels)).first;
             }
 
             auto* face = found->second;
-            return face != nullptr && TTF_SetFontSize(face, size) ? face : nullptr;
+            return face != nullptr && TTF_SetFontSize(face, pixels) ? face : nullptr;
+        }
+
+        // A size of text's metrics in pixels at a scale, with the ascent of its font, sized to it.
+        [[nodiscard]] auto metricsOf(float size, float scale, TTF_Font* face) const -> TextMetrics
+        {
+            const auto pixels = size * scale * PointsToPixels;
+            return {.pixels = pixels,
+                    .advance = metrics_.advance * pixels,
+                    .lineSkip = metrics_.lineSkip * pixels,
+                    .ascent = static_cast<float>(TTF_GetFontAscent(face))};
+        }
+
+        // How many lines a text has, and how many characters its longest has. Bytes that continue a character don't
+        // count.
+        static auto extentOf(std::string_view text) -> TextExtent
+        {
+            TextExtent x{.lines = 1, .longest = 0};
+            auto columns = 0;
+
+            for (const auto c : text)
+            {
+                if (c == '\n')
+                {
+                    ++x.lines;
+                    columns = 0;
+                }
+                else if ((static_cast<unsigned char>(c) & ContinuationMask) != ContinuationByte)
+                {
+                    x.longest = std::max(x.longest, ++columns);
+                }
+            }
+
+            return x;
+        }
+
+        // Where a text's first line starts and its baseline is, in pixels, from the point of it that's pinned.
+        [[nodiscard]] auto place(Vec2 at, Vec2 anchor, TextExtent extent, const TextMetrics& metrics, float scale) const -> Vec2
+        {
+            const auto left = (at.x * scale) - (anchor.x * metrics.advance * static_cast<float>(extent.longest));
+            const auto height = (metrics_.height * metrics.pixels) + (metrics.lineSkip * static_cast<float>(extent.lines - 1));
+            const auto baseline = (at.y * scale) - (anchor.y * height) + (metrics_.ascent * metrics.pixels);
+            return {.x = left, .y = baseline};
+        }
+
+        // Hands `glyph` each of a text's glyphs from the atlas, in order, with its column and line: SDL_ttf lays out
+        // each character in the text's font, a glyph at a time, as scope places them. False if SDL_ttf failed.
+        auto forEachGlyph(const scope::Text& x, TTF_Font* face, const auto& glyph) -> bool
+        {
+            const auto* next = x.text.c_str();
+            auto remaining = std::size(x.text);
+            auto line = 0;
+            auto column = 0;
+
+            while (remaining > 0)
+            {
+                const auto* start = next;
+                const auto codepoint = SDL_StepUTF8(&next, &remaining);
+                const auto bytes = std::string_view{start, static_cast<std::size_t>(next - start)};
+
+                if (codepoint == '\n')
+                {
+                    ++line;
+                    column = 0;
+                    continue;
+                }
+
+                const auto drawnAt = column++;
+
+                if (codepoint == ' ')
+                {
+                    continue;
+                }
+
+                auto* text = glyphText(x, face, bytes, codepoint);
+
+                if (text == nullptr || !TTF_UpdateText(text))
+                {
+                    return false;
+                }
+
+                const auto& internal = *text->internal;
+
+                // SDL_ttf hands a text's drawing over as a union of operations, tagged by their first member.
+                for (const auto& operation : std::span{internal.ops, static_cast<std::size_t>(std::max(internal.num_ops, 0))})
+                {
+                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+                    if (operation.cmd == TTF_DRAW_COMMAND_COPY)
+                    {
+                        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+                        glyph(drawnAt, line, operation.copy);
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        // A data block's glyphs, laid out again only if its text, the atlas or the scale changed since they last were.
+        // Null if SDL_ttf failed.
+        auto layOut(const scope::DataBlock& x, float scale, TTF_Font* face) -> const LaidOutBlock*
+        {
+            if (std::size(blocks_) <= x.track)
+            {
+                blocks_.resize(x.track + 1);
+            }
+
+            auto& laidOut = blocks_.at(x.track);
+            // The block's speed, as `scope::TextOf()` rounds it, says whether its text changed.
+            const auto knots = std::nearbyint(x.knots);
+
+            if (laidOut.atlas == atlasGeneration_ && laidOut.scale == scale && laidOut.knots == knots && laidOut.callsign == x.callsign)
+            {
+                return &laidOut;
+            }
+
+            const auto text = scope::TextOf(x);
+            laidOut.callsign = x.callsign;
+            laidOut.knots = knots;
+            laidOut.scale = scale;
+            laidOut.atlas = atlasGeneration_;
+            laidOut.extent = extentOf(text.text);
+            laidOut.cells.clear();
+            const auto atlas = static_cast<float>(atlasSize_);
+
+            const auto added = forEachGlyph(
+                text, face,
+                [&](int column, int line, const TTF_CopyOperation& operation)
+                {
+                    const auto* glyph = pack(operation);
+
+                    // A glyph that doesn't fit leaves the block to be laid out again, once
+                    // the atlas has grown.
+                    if (glyph == nullptr)
+                    {
+                        laidOut.atlas = atlasGeneration_ - 1;
+                        return;
+                    }
+
+                    const auto& [slot, type] = *glyph;
+                    const auto& dst = operation.dst;
+                    laidOut.cells.push_back(
+                        {.column = static_cast<float>(column),
+                         .line = static_cast<float>(line),
+                         .quad = {static_cast<float>(dst.x), static_cast<float>(dst.y), static_cast<float>(dst.w), static_cast<float>(dst.h)},
+                         .uv = {static_cast<float>(slot.x) / atlas, static_cast<float>(slot.y) / atlas,
+                                static_cast<float>(slot.x + slot.width) / atlas, static_cast<float>(slot.y + slot.height) / atlas},
+                         .colored = type != TTF_IMAGE_ALPHA});
+                });
+
+            return added ? &laidOut : nullptr;
         }
 
         // A glyph of text of a size, laid out by SDL_ttf in that size's font the first time it's drawn.
@@ -466,8 +668,15 @@ export namespace scopegpu
             }
 
             fonts_.clear();
-            packed_.clear();
+            clearAtlas();
+        }
+
+        // Forgets every glyph in the atlas, and so the data blocks laid out from them.
+        auto clearAtlas() -> void
+        {
             packer_.clear();
+            packed_.clear();
+            ++atlasGeneration_;
         }
 
         // Adds a glyph's quad, at the glyph text's top left: the quad is where SDL_ttf laid the glyph out, and the
@@ -582,5 +791,11 @@ export namespace scopegpu
         std::vector<std::uint32_t> indices_;
         std::vector<std::byte> staged_;
         std::vector<GlyphUpload> uploads_;
+        // How many times the atlas has been cleared, so data blocks laid out from glyphs no longer in it are laid out
+        // again.
+        std::uint32_t atlasGeneration_{};
+        // Each track's data block, by its place in the scope's list, as it was last laid out.
+        std::vector<LaidOutBlock> blocks_;
+        std::vector<BlockGlyph> blockGlyphs_;
     };
 }

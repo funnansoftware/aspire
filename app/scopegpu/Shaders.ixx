@@ -19,10 +19,14 @@ export namespace scopegpu
         ShapeFragment,
         /// Glowing shapes, split into their full and fainter channels.
         GlowFragment,
+        /// Tracks' marks, each an instance of a mesh kept on the GPU, moved into place.
+        MarkVertex,
         /// Glyphs' quads, with where they are in the atlas.
         TextVertex,
         /// Glyphs from the atlas.
         TextFragment,
+        /// Data blocks' glyphs, each an instance of a glyph's quad, placed at a whole pixel.
+        BlockVertex,
         /// A triangle over the whole target.
         FullscreenVertex,
         /// One axis of the glow's blur.
@@ -74,10 +78,14 @@ namespace scopegpu
                     return {.blobs = &shadercode::ShapeFragment, .stage = SDL_GPU_SHADERSTAGE_FRAGMENT, .samplers = 0, .uniformBuffers = 0};
                 case ShaderName::GlowFragment:
                     return {.blobs = &shadercode::GlowFragment, .stage = SDL_GPU_SHADERSTAGE_FRAGMENT, .samplers = 0, .uniformBuffers = 0};
+                case ShaderName::MarkVertex:
+                    return {.blobs = &shadercode::MarkVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::TextVertex:
                     return {.blobs = &shadercode::TextVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::TextFragment:
                     return {.blobs = &shadercode::TextFragment, .stage = SDL_GPU_SHADERSTAGE_FRAGMENT, .samplers = 1, .uniformBuffers = 0};
+                case ShaderName::BlockVertex:
+                    return {.blobs = &shadercode::BlockVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::FullscreenVertex:
                     return {.blobs = &shadercode::FullscreenVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 0};
                 case ShaderName::BlurFragment:

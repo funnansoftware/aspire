@@ -98,6 +98,65 @@ export namespace scope
         Color color;
     };
 
+    /// @brief A track's mark inside the scale ring: its history dots, the leader that shows its speed, and its symbol.
+    ///
+    /// `AddMark()` draws a mark as shapes. A renderer that draws marks itself can have the picture hold them as they
+    /// are instead, in a `Marks`.
+    struct Mark
+    {
+        Glyph glyph{};
+        Color color;
+        /// Where the track is, in logical units.
+        Vec2 at;
+        /// Degrees clockwise from north.
+        float heading{};
+        /// From the symbol's nose to the leader's end, in logical units.
+        float leader{};
+        /// Where the track has been, in logical units, newest first. Left out of the marks in a `Marks`, whose
+        /// renderer samples them from `route` itself.
+        std::array<Vec2, HistoryCount> dots{};
+        /// The route the track flies, which its dots are where it was on, `HistoryInterval` apart.
+        Route route;
+    };
+
+    /// @brief The tracks' marks, where the picture would otherwise hold a glowing group of shapes for each.
+    ///
+    /// The marks leave out their dots: each is where its track was on its route, `HistoryInterval` apart before
+    /// `seconds`, in nautical miles from ownship, which is at `center` with `unitsPerNm` logical units to a mile.
+    struct Marks
+    {
+        /// In the order the tracks are listed, which is the order they're drawn in.
+        std::vector<Mark> marks;
+        /// Whether they glow, as their groups would.
+        bool glow{};
+        /// The scope's clock, in scope seconds.
+        float seconds{};
+        Vec2 center;
+        float unitsPerNm{};
+    };
+
+    /// @brief A track's data block beside its mark: its callsign over its speed, which `TextOf()` gives as a text.
+    struct DataBlock
+    {
+        /// Where the track is in the scope's list, which stays the same from frame to frame.
+        std::size_t track{};
+        std::string callsign;
+        /// Shown to the nearest whole knot.
+        float knots{};
+        /// The point the block's text is pinned to, in logical units.
+        Vec2 at;
+        Color color;
+    };
+
+    /// @brief Data blocks drawn one after another, where the picture would otherwise hold a text for each.
+    struct DataBlocks
+    {
+        std::vector<DataBlock> blocks;
+        /// Every block's text's size and anchor, as `TextOf()` gives them.
+        float size{};
+        Vec2 anchor;
+    };
+
     struct Item;
 
     /// @brief Items drawn together: clipped to a circle, or glowing like a phosphor display.
@@ -110,7 +169,7 @@ export namespace scope
 
     struct Item
     {
-        std::variant<Shape, Text, Backdrop, Rule, Group> value;
+        std::variant<Shape, Text, Backdrop, Rule, Group, Marks, DataBlocks> value;
     };
 
     /// @brief A frame of the scope.
@@ -133,6 +192,10 @@ export namespace scope
         std::string_view caption;
         double milliseconds{};
         double framesPerSecond{};
+        /// Whether the tracks' marks and data blocks are left to the renderer: the picture holds them in a `Marks`
+        /// where their groups of shapes would be, and in `DataBlocks` where their texts would be. Only for a renderer
+        /// that draws them itself.
+        bool marks{};
     };
 }
 
@@ -231,12 +294,15 @@ namespace scope
             // The range at the scale ring, in nautical miles.
             float range{};
             std::span<const Track> tracks;
+            // Where each of the tracks is now, sampled once for every part of the picture that shows it.
+            std::span<const TrackState> states;
             // The tracks' and the pings' clocks.
             float seconds{};
             float pingSeconds{};
             bool text{};
             float advance{};
             bool glow{};
+            bool marks{};
         };
 
         // A point a distance from a center, at a bearing.
@@ -435,64 +501,150 @@ namespace scope
                              .opacity = 1.0F});
         }
 
-        // The tracks inside the scale ring: their history dots, leader lines showing their speed, and symbols, each
-        // in a glowing group of its own.
+    }
+}
+
+export namespace scope
+{
+    /// @brief Adds a track's mark to a group as shapes: its history dots, fading as they age, its leader, and its
+    /// symbol pointing along its heading, in that order.
+    /// @param group The group to add to.
+    /// @param x The mark.
+    auto AddMark(Group& group, const Mark& x) -> void
+    {
+        for (std::size_t i = 0; i < std::size(x.dots); ++i)
+        {
+            AddShape(group, {.geometry = Circle{.center = x.dots.at(i), .radius = HistoryDotRadius},
+                             .pen = std::nullopt,
+                             .fill = x.color,
+                             .opacity = HistoryOpacity * (1.0F - (static_cast<float>(i) / static_cast<float>(std::size(x.dots))))});
+        }
+
+        const auto nose = At(x.at, {.radius = SymbolSize, .bearing = x.heading});
+        AddShape(group, Line(nose, At(nose, {.radius = x.leader, .bearing = x.heading}), {.color = x.color, .width = ThinLineWidth}));
+        AddSymbol(group, {.glyph = x.glyph, .at = x.at, .heading = x.heading, .size = SymbolSize, .color = x.color});
+    }
+
+    /// @brief Gives a data block as the text it's drawn as.
+    /// @param x The block.
+    /// @return Its callsign over its speed in whole knots, pinned by its bottom left.
+    [[nodiscard]] auto TextOf(const DataBlock& x) -> Text
+    {
+        return {.text = std::format("{}\n{:.0f}", x.callsign, x.knots),
+                .at = x.at,
+                .size = DataBlockSize,
+                .color = x.color,
+                .anchor = BottomLeft,
+                .opacity = 1.0F};
+    }
+}
+
+namespace scope
+{
+    namespace
+    {
+        // The tracks inside the scale ring, each marked in a glowing group of its own, or all their marks together
+        // for a renderer that draws them itself.
         auto AddTracks(Group& group, const Frame& frame) -> void
         {
+            Marks marks{.marks = {}, .glow = frame.glow, .seconds = frame.seconds, .center = frame.center, .unitsPerNm = frame.unitsPerNm};
+
+            if (frame.marks)
+            {
+                marks.marks.reserve(std::size(frame.tracks));
+            }
+
+            // Each track's state is the one alongside it.
+            auto states = std::cbegin(frame.states);
+
             for (const auto& track : frame.tracks)
             {
-                const auto state = Sample(track.route, frame.seconds);
+                const auto& state = *states++;
 
                 if (RangeOf(state.position) > frame.range)
                 {
                     continue;
                 }
 
-                const auto color = frame.palette.colorOf(track.classification);
-                Group drawn{.items = {}, .clip = std::nullopt, .glow = frame.glow};
-                const auto dots = History(track.route, frame.seconds);
+                Mark mark{.glyph = track.glyph,
+                          .color = frame.palette.colorOf(track.classification),
+                          .at = ToView(frame, state.position),
+                          .heading = state.heading,
+                          .leader = state.knots * LeaderPerKnot,
+                          .dots = {},
+                          .route = track.route};
 
-                for (std::size_t i = 0; i < std::size(dots); ++i)
+                // A renderer that draws the marks samples their dots itself.
+                if (frame.marks)
                 {
-                    AddShape(drawn, {.geometry = Circle{.center = ToView(frame, dots.at(i)), .radius = HistoryDotRadius},
-                                     .pen = std::nullopt,
-                                     .fill = color,
-                                     .opacity = HistoryOpacity * (1.0F - (static_cast<float>(i) / static_cast<float>(std::size(dots))))});
+                    marks.marks.push_back(mark);
+                    continue;
                 }
 
-                const auto at = ToView(frame, state.position);
-                const auto nose = At(at, {.radius = SymbolSize, .bearing = state.heading});
-                AddShape(drawn, Line(nose, At(nose, {.radius = state.knots * LeaderPerKnot, .bearing = state.heading}),
-                                     {.color = color, .width = ThinLineWidth}));
-                AddSymbol(drawn, {.glyph = track.glyph, .at = at, .heading = state.heading, .size = SymbolSize, .color = color});
+                std::ranges::transform(History(track.route, frame.seconds), std::begin(mark.dots), [&frame](Vec2 x) { return ToView(frame, x); });
+                Group drawn{.items = {}, .clip = std::nullopt, .glow = frame.glow};
+                AddMark(drawn, mark);
                 AddGroup(group, std::move(drawn));
+            }
+
+            if (frame.marks)
+            {
+                group.items.emplace_back(std::move(marks));
             }
         }
 
-        // Over the tracks, unclipped: their data blocks, or a caret for each past the scale ring.
+        // Over the tracks, unclipped: their data blocks, or a caret for each past the scale ring. For a renderer that
+        // draws data blocks itself, each run of them between carets is held together.
         auto AddTrackLabels(Group& group, const Frame& frame) -> void
         {
             const auto base = ScaleRadius + CaretGap;
             const auto spread = Degrees(CaretSize * CaretWidthShare / base);
+            DataBlocks blocks{.blocks = {}, .size = DataBlockSize, .anchor = BottomLeft};
+
+            if (frame.marks)
+            {
+                blocks.blocks.reserve(std::size(frame.tracks));
+            }
+
+            const auto flush = [&group, &blocks]
+            {
+                if (!std::empty(blocks.blocks))
+                {
+                    group.items.emplace_back(std::exchange(blocks, {.blocks = {}, .size = blocks.size, .anchor = blocks.anchor}));
+                }
+            };
+
+            auto states = std::cbegin(frame.states);
+            std::size_t index = 0;
 
             for (const auto& track : frame.tracks)
             {
-                const auto state = Sample(track.route, frame.seconds);
+                const auto i = index++;
+                const auto& state = *states++;
                 const auto color = frame.palette.colorOf(track.classification);
 
                 if (RangeOf(state.position) <= frame.range)
                 {
                     const auto at = ToView(frame, state.position);
-                    AddText(group, frame,
-                            {.text = std::format("{}\n{:.0f}", track.callsign, state.knots),
-                             .at = {.x = at.x + DataBlockOffset, .y = at.y - DataBlockOffset},
-                             .size = DataBlockSize,
-                             .color = color,
-                             .anchor = BottomLeft,
-                             .opacity = 1.0F});
+                    DataBlock block{.track = i,
+                                    .callsign = track.callsign,
+                                    .knots = state.knots,
+                                    .at = {.x = at.x + DataBlockOffset, .y = at.y - DataBlockOffset},
+                                    .color = color};
+
+                    if (!frame.marks)
+                    {
+                        AddText(group, frame, TextOf(block));
+                    }
+                    else if (frame.text)
+                    {
+                        blocks.blocks.push_back(std::move(block));
+                    }
+
                     continue;
                 }
 
+                flush();
                 const auto bearing = BearingOf(state.position);
                 AddShape(group, {.geometry = Polyline{.points = {At(frame.center, {.radius = base + CaretSize, .bearing = bearing}),
                                                                  At(frame.center, {.radius = base, .bearing = bearing + spread}),
@@ -502,6 +654,8 @@ namespace scope
                                  .fill = color,
                                  .opacity = 1.0F});
             }
+
+            flush();
         }
 
         auto Readout(std::string text, Vec2 at, Color color, Vec2 anchor) -> Text
@@ -538,10 +692,12 @@ namespace scope
             AddText(group, frame,
                     Readout(std::format("{:<9} {:>7} {:>4}", "TRACK", "BRG/RNG", "KT"), {.x = right, .y = row}, FurnitureColor, TopRight));
 
+            auto states = std::cbegin(frame.states);
+
             for (const auto& track : frame.tracks | std::views::take(TableRows))
             {
                 row += RowHeight;
-                const auto state = Sample(track.route, frame.seconds);
+                const auto& state = *states++;
                 const auto bearing = std::lround(BearingOf(state.position)) % static_cast<long>(FullTurn);
                 AddText(group, frame,
                         Readout(std::format("{:<9} {:03}/{:<3.0f} {:>4.0f}", track.callsign, bearing, RangeOf(state.position), state.knots),
@@ -604,18 +760,23 @@ export namespace scope
         const auto range = scope.getRange().range();
         const auto width = static_cast<float>(view.width) / scale;
         const auto height = static_cast<float>(view.height) / scale;
+        const auto tracks = scope.getTracks();
+        const auto states =
+            tracks | std::views::transform([&scope](const Track& x) { return Sample(x.route, scope.getSeconds()); }) | std::ranges::to<std::vector>();
         const Frame frame{.width = width,
                           .height = height,
                           .center = {.x = width * Half, .y = height * Half},
                           .unitsPerNm = ScaleRadius / range,
                           .palette = scope.getPalette(),
                           .range = range,
-                          .tracks = scope.getTracks(),
+                          .tracks = tracks,
+                          .states = states,
                           .seconds = scope.getSeconds(),
                           .pingSeconds = scope.getPingSeconds(),
                           .text = view.text,
                           .advance = view.advance,
-                          .glow = scope.getGlow()};
+                          .glow = scope.getGlow(),
+                          .marks = view.marks};
 
         Picture picture{.scale = scale, .root = {}};
         auto& root = picture.root;
