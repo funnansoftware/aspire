@@ -126,10 +126,10 @@ RUN echo /usr/local/lib64 > /etc/ld.so.conf.d/gcc-15.conf && ldconfig
 ENV CC=gcc \
     CXX=g++
 
-# SDL3 is built by vcpkg; install its Linux system dependencies, as in the main
-# Dockerfile: the X11 and Wayland backends plus OpenGL/EGL rendering. The main
-# Dockerfile's IBus headers and autotools set are omitted — the steamos preset
-# builds SDL3 without IBus (see the README), and no port in its plan autoreconfs.
+# SDL3 is built by vcpkg; install its Linux system dependencies, the same set as
+# the main Dockerfile: the default X11, Wayland and IBus features, plus
+# OpenGL/EGL rendering. IBus brings in D-Bus and libsystemd, whose libxcrypt,
+# libmount and gperf ports autoreconf, hence the autotools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-dev \
     libxft-dev \
@@ -137,9 +137,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwayland-dev \
     wayland-protocols \
     libxkbcommon-dev \
+    libibus-1.0-dev \
     libgl1-mesa-dev \
     libgles2-mesa-dev \
     libegl1-mesa-dev \
+    autoconf \
+    autoconf-archive \
+    automake \
+    libtool \
+    libltdl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Modern CMake. CMakeLists requires CMake >= 4.4.2 for experimental `import std`;

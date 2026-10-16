@@ -43,15 +43,13 @@ preset links `-static-libstdc++ -static-libgcc`. The glibc floor is then the onl
 runtime contract. SDL3 is a static vcpkg library and loads X11/Wayland/audio
 libraries at runtime, so the Deck's own copies are used.
 
-### IBus is off
+### IBus
 
-`vcpkg.json` makes SDL3's IBus input-method support an `ibus` manifest feature,
-on by default. The `x64-steamos-gcc-release` preset sets
-`VCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON` to skip it, so SteamOS builds have no IBus
-IME; other presets still build it. The skip dates from the previous base, Steam
-Linux Runtime 3.0 "sniper", whose glibc 2.31 could not build the `libsystemd`
-that IBus pulls in through D-Bus. steamrt4 has not been tried with it. Add new
-dependencies with the glibc floor in mind, and run the steamos workflow to check.
+SteamOS builds include SDL3's IBus input-method support, like the other Linux
+presets. It pulls in D-Bus and `libsystemd`, which vcpkg builds as static
+libraries, so the image carries the IBus headers and the autotools their ports
+need. Add new dependencies with the glibc floor in mind, and run the steamos
+workflow to check.
 
 ### Updating the base image
 
