@@ -259,7 +259,7 @@ export namespace scopegpu
             }
 
             const auto metrics = metricsOf(x.size, scale, face);
-            const auto start = place(x.at, x.anchor, ExtentOf(x.text), metrics, scale);
+            const auto start = place(x.at, x.anchor, extentOf(x.text), metrics, scale);
             const auto tint = scope::TintOf(x.color, x.opacity);
 
             return forEachGlyph(x, face,
@@ -294,7 +294,7 @@ export namespace scopegpu
 
             for (const auto& block : x.blocks)
             {
-                auto* laidOut = layOut(block, scale, face);
+                const auto* laidOut = layOut(block, scale, face);
 
                 if (laidOut == nullptr)
                 {
@@ -499,7 +499,7 @@ export namespace scopegpu
 
         // How many lines a text has, and how many characters its longest has. Bytes that continue a character don't
         // count.
-        static auto ExtentOf(std::string_view text) -> TextExtent
+        static auto extentOf(std::string_view text) -> TextExtent
         {
             TextExtent x{.lines = 1, .longest = 0};
             auto columns = 0;
@@ -605,7 +605,7 @@ export namespace scopegpu
             laidOut.knots = knots;
             laidOut.scale = scale;
             laidOut.atlas = atlasGeneration_;
-            laidOut.extent = ExtentOf(text.text);
+            laidOut.extent = extentOf(text.text);
             laidOut.cells.clear();
             const auto atlas = static_cast<float>(atlasSize_);
 

@@ -19,16 +19,16 @@ export namespace scopegpu
         /// The history dots, newest first, are the first six.
         Dot = 0,
         LeaderNear = 6,
-        LeaderFar,
+        LeaderFar = 7,
         /// A generic track's circle.
-        Ring,
+        Ring = 8,
         /// A generic track's heading tick.
-        TickNear,
-        TickFar,
+        TickNear = 9,
+        TickFar = 10,
         /// A typed track's arrowhead.
-        Outline,
+        Outline = 11,
         /// An identified track's arrowhead.
-        Filled,
+        Filled = 12,
     };
 
     /// @brief A corner of the marks' mesh: a mark at the origin pointing north, in target pixels.
@@ -126,6 +126,7 @@ namespace scopegpu
     // How far a mark's leader and tick start and end along its heading, and where its arrowheads' middles are, as
     // `scope::AddMark()` draws them at the origin pointing north. Logical units. Unlike the rest below, this isn't
     // private to the file: `Frame` keeps one, and GCC won't let an exported class name what only this file can see.
+    // NOLINTNEXTLINE(misc-use-internal-linkage)
     struct MarkShape
     {
         float leaderNear{};
@@ -145,6 +146,7 @@ namespace scopegpu
         constexpr std::uint32_t RouteShift = 11U;
         constexpr float HalfTurn = 180.0F;
         constexpr float FullTurn = 360.0F;
+        constexpr double FullTurnRadians = 2.0 * std::numbers::pi;
         constexpr float SecondsPerHour = 3600.0F;
 
         // A mark at the origin pointing north: the one the mesh is made from.
@@ -154,7 +156,8 @@ namespace scopegpu
                                         .heading = 0.0F,
                                         // Long enough that the leader's ends are told apart at any scale.
                                         .leader = 100.0F,
-                                        .dots = {}};
+                                        .dots = {},
+                                        .route = {}};
 
         // A canonical mark's shapes: its dots, its leader, and its symbol's parts.
         auto ShapesOf(scope::Glyph glyph) -> std::vector<scope::Shape>
@@ -339,10 +342,10 @@ namespace scopegpu
                     [clock](const scope::FigureEight& eight)
                     {
                         constexpr float half = 0.5F;
-                        const auto rate = 2.0 * std::numbers::pi / static_cast<double>(eight.seconds);
+                        const auto rate = FullTurnRadians / static_cast<double>(eight.seconds);
                         return RouteRecord{.route = {eight.center.x, eight.center.y, eight.bearing, eight.length * half},
                                            .pace = static_cast<float>(rate),
-                                           .progress = Lapped(rate * clock, 2.0 * std::numbers::pi)};
+                                           .progress = Lapped(rate * clock, FullTurnRadians)};
                     },
                     [clock](const scope::Transit& transit)
                     {
@@ -394,28 +397,52 @@ namespace scopegpu
 
             // A closed shape's kept or dropped whole by its middle: a circle's is its center, and an arrowhead's is
             // turned with it.
-            const auto middle =
-                x.glyph == scope::Glyph::Outline ? shape.outlineMiddle : (x.glyph == scope::Glyph::Filled ? shape.filledMiddle : Vec2{});
+            auto middle = Vec2{};
+
+            if (x.glyph == scope::Glyph::Outline)
+            {
+                middle = shape.outlineMiddle;
+            }
+            else if (x.glyph == scope::Glyph::Filled)
+            {
+                middle = shape.filledMiddle;
+            }
+
             const Vec2 turned{.x = x.at.x + ((middle.x * cosine) - (middle.y * sine)), .y = x.at.y + ((middle.x * sine) + (middle.y * cosine))};
             instance.flags |= Inside(clip, Scaled(turned, style.scale)) ? KeptSymbol : 0U;
 
-            // Lines are cut where they leave the clip. Their ends are placed as the picture places them: the leader's
-            // from the symbol's nose, and the tick's from the track.
-            const auto cut = [&](std::pair<Vec2, Vec2> ends, std::pair<float, float> reach, std::uint32_t kept, std::size_t slot)
+            // Lines are cut where they leave the clip: how far along the heading a line's ends reach once it's cut,
+            // or none if it's all outside. Their ends are placed as the picture places them: the leader's from the
+            // symbol's nose, and the tick's from the track.
+            const auto cut = [&](std::pair<Vec2, Vec2> ends, std::pair<float, float> reach) -> std::optional<std::pair<float, float>>
             {
-                const auto [near, far] = reach;
+                const auto inside = Cut(Scaled(ends.first, style.scale), Scaled(ends.second, style.scale), clip);
 
-                if (const auto inside = Cut(Scaled(ends.first, style.scale), Scaled(ends.second, style.scale), clip); inside.has_value())
+                if (!inside.has_value())
                 {
-                    instance.flags |= kept;
-                    instance.segments.at(slot) = near + (inside->first * (far - near));
-                    instance.segments.at(slot + 1) = near + (inside->second * (far - near));
+                    return std::nullopt;
                 }
+
+                const auto [near, far] = reach;
+                return std::pair{near + (inside->first * (far - near)), near + (inside->second * (far - near))};
             };
 
             const auto nose = Along(x.at, shape.leaderNear, sine, cosine);
-            cut({nose, Along(nose, x.leader, sine, cosine)}, {shape.leaderNear, leaderFar}, KeptLeader, 0);
-            cut({Along(x.at, shape.tickNear, sine, cosine), Along(x.at, shape.tickFar, sine, cosine)}, {shape.tickNear, shape.tickFar}, KeptTick, 2);
+
+            if (const auto leader = cut({nose, Along(nose, x.leader, sine, cosine)}, {shape.leaderNear, leaderFar}); leader.has_value())
+            {
+                instance.flags |= KeptLeader;
+                std::tie(instance.segments.at(0), instance.segments.at(1)) = *leader;
+            }
+
+            if (const auto tick =
+                    cut({Along(x.at, shape.tickNear, sine, cosine), Along(x.at, shape.tickFar, sine, cosine)}, {shape.tickNear, shape.tickFar});
+                tick.has_value())
+            {
+                instance.flags |= KeptTick;
+                std::tie(instance.segments.at(2), instance.segments.at(3)) = *tick;
+            }
+
             return instance;
         }
 

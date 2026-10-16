@@ -554,10 +554,12 @@ namespace scope
                 marks.marks.reserve(std::size(frame.tracks));
             }
 
-            for (std::size_t i = 0; i < std::size(frame.tracks); ++i)
+            // Each track's state is the one alongside it.
+            auto states = std::cbegin(frame.states);
+
+            for (const auto& track : frame.tracks)
             {
-                const auto& track = frame.tracks[i];
-                const auto& state = frame.states[i];
+                const auto& state = *states++;
 
                 if (RangeOf(state.position) > frame.range)
                 {
@@ -612,10 +614,13 @@ namespace scope
                 }
             };
 
-            for (std::size_t i = 0; i < std::size(frame.tracks); ++i)
+            auto states = std::cbegin(frame.states);
+            std::size_t index = 0;
+
+            for (const auto& track : frame.tracks)
             {
-                const auto& track = frame.tracks[i];
-                const auto& state = frame.states[i];
+                const auto i = index++;
+                const auto& state = *states++;
                 const auto color = frame.palette.colorOf(track.classification);
 
                 if (RangeOf(state.position) <= frame.range)
@@ -687,11 +692,12 @@ namespace scope
             AddText(group, frame,
                     Readout(std::format("{:<9} {:>7} {:>4}", "TRACK", "BRG/RNG", "KT"), {.x = right, .y = row}, FurnitureColor, TopRight));
 
-            for (std::size_t i = 0; i < std::min(std::size(frame.tracks), TableRows); ++i)
+            auto states = std::cbegin(frame.states);
+
+            for (const auto& track : frame.tracks | std::views::take(TableRows))
             {
                 row += RowHeight;
-                const auto& track = frame.tracks[i];
-                const auto& state = frame.states[i];
+                const auto& state = *states++;
                 const auto bearing = std::lround(BearingOf(state.position)) % static_cast<long>(FullTurn);
                 AddText(group, frame,
                         Readout(std::format("{:<9} {:03}/{:<3.0f} {:>4.0f}", track.callsign, bearing, RangeOf(state.position), state.knots),

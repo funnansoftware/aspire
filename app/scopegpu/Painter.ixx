@@ -9,6 +9,7 @@ import aspire.core;
 import scope.glow;
 import scope.mesh;
 import scope.picture;
+import scope.tessellation;
 import scope.world;
 import scopegpu.frame;
 import scopegpu.glyphs;
@@ -95,7 +96,7 @@ namespace scopegpu
         // Each mark's instance: where it is with its heading and its route's clock, its color, its leader and tick, its
         // route and how fast it goes, and its flags.
         constexpr std::uint32_t MarkInstanceVectors = 4;
-        static_assert(sizeof(MarkInstance) == (MarkInstanceVectors * Vec4Bytes) + sizeof(float) + sizeof(std::uint32_t));
+        static_assert(sizeof(MarkInstance) == (std::size_t{MarkInstanceVectors} * Vec4Bytes) + sizeof(float) + sizeof(std::uint32_t));
         constexpr auto MarkInstanceAttributes = []
         {
             std::array<SDL_GPUVertexAttribute, MarkInstanceVectors + 2> x{};
@@ -133,7 +134,7 @@ namespace scopegpu
         // Each data block's glyph's instance: where its block starts and its column and line, its quad, where it is in
         // the atlas, and its color.
         constexpr std::uint32_t BlockGlyphVectors = 4;
-        static_assert(sizeof(BlockGlyph) == BlockGlyphVectors * Vec4Bytes);
+        static_assert(sizeof(BlockGlyph) == std::size_t{BlockGlyphVectors} * Vec4Bytes);
         constexpr auto BlockGlyphAttributes = []
         {
             std::array<SDL_GPUVertexAttribute, BlockGlyphVectors> x{};
@@ -280,7 +281,7 @@ namespace scopegpu
             info.vertex_shader = vertex.get();
             info.fragment_shader = fragment.get();
             info.vertex_input_state.vertex_buffer_descriptions = vertices ? std::data(buffers) : nullptr;
-            info.vertex_input_state.num_vertex_buffers = instances ? 2 : (vertices ? 1 : 0);
+            info.vertex_input_state.num_vertex_buffers = (vertices ? 1U : 0U) + (instances ? 1U : 0U);
             info.vertex_input_state.vertex_attributes = std::data(attributes);
             info.vertex_input_state.num_vertex_attributes = static_cast<std::uint32_t>(std::size(attributes));
             info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
@@ -522,27 +523,37 @@ export namespace scopegpu
                                                       .fragment = ShaderName::ShapeFragment,
                                                       .attributes = ShapeAttributes,
                                                       .pitch = sizeof(scope::Vertex),
-                                                      .targets = frame});
+                                                      .targets = frame,
+                                                      .instanceAttributes = {},
+                                                      .instancePitch = 0});
             glowPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::ShapeVertex,
                                                      .fragment = ShaderName::GlowFragment,
                                                      .attributes = ShapeAttributes,
                                                      .pitch = sizeof(scope::Vertex),
-                                                     .targets = glow});
+                                                     .targets = glow,
+                                                     .instanceAttributes = {},
+                                                     .instancePitch = 0});
             textPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::TextVertex,
                                                      .fragment = ShaderName::TextFragment,
                                                      .attributes = TextAttributes,
                                                      .pitch = sizeof(GlyphVertex),
-                                                     .targets = frame});
+                                                     .targets = frame,
+                                                     .instanceAttributes = {},
+                                                     .instancePitch = 0});
             blurPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::FullscreenVertex,
                                                      .fragment = ShaderName::BlurFragment,
                                                      .attributes = {},
                                                      .pitch = 0,
-                                                     .targets = glowReplaced});
+                                                     .targets = glowReplaced,
+                                                     .instanceAttributes = {},
+                                                     .instancePitch = 0});
             compositePipeline_ = CreatePipeline(device_, {.vertex = ShaderName::FullscreenVertex,
                                                           .fragment = ShaderName::CompositeFragment,
                                                           .attributes = {},
                                                           .pitch = 0,
-                                                          .targets = frameReplaced});
+                                                          .targets = frameReplaced,
+                                                          .instanceAttributes = {},
+                                                          .instancePitch = 0});
             markPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::MarkVertex,
                                                      .fragment = ShaderName::ShapeFragment,
                                                      .attributes = MarkAttributes,
@@ -1265,8 +1276,11 @@ export namespace scopegpu
             const auto& view = frame_.markView();
             const auto clipped = !x.glow && view.clip.has_value();
             const auto clip = view.clip.value_or(scope::Clip{});
+            // The glow's scale is there whenever its marks are drawn, as they're only drawn into a glow that's planned.
+            const auto& glow = frame_.glow();
+            const auto scale = x.glow && glow.has_value() ? glow->scale : frame_.scale();
             const MarkUniforms uniforms{.projection = ProjectionOf(x.target).projection,
-                                        .view = {x.glow ? frame_.glow()->scale : frame_.scale(), clipped ? 1.0F : 0.0F, 0.0F, 0.0F},
+                                        .view = {scale, clipped ? 1.0F : 0.0F, 0.0F, 0.0F},
                                         .world = {view.center.x, view.center.y, view.unitsPerNm, view.interval},
                                         .clip = {clip.center.x, clip.center.y, clip.radius, 0.0F}};
             SDL_BindGPUGraphicsPipeline(pass, x.glow ? markGlowPipeline_.get() : markPipeline_.get());
