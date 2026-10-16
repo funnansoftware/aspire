@@ -92,8 +92,14 @@ export namespace scopegpu
         const scope::Backdrop* backdrop{};
     };
 
+    /// @brief Data blocks, drawn in the main pass at the picture's scale as instances of a glyph's quad.
+    struct BlocksRun
+    {
+        const scope::DataBlocks* blocks{};
+    };
+
     /// @brief Something drawn in the main pass.
-    using Run = std::variant<ShapeRun, TextRun, BackdropRun, MarksRun>;
+    using Run = std::variant<ShapeRun, TextRun, BackdropRun, MarksRun, BlocksRun>;
 }
 
 namespace scopegpu
@@ -563,6 +569,11 @@ export namespace scopegpu
                         // NOLINTNEXTLINE(misc-no-recursion)
                         [&](const scope::Group& x) { addGroup(x, style); },
                         [&](const scope::Marks& x) { addMarks(x, style); },
+                        [&](const scope::DataBlocks& x)
+                        {
+                            closeShapes();
+                            runs_.emplace_back(BlocksRun{.blocks = &x});
+                        },
                     },
                     item.value);
             }

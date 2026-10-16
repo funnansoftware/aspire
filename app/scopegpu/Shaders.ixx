@@ -25,6 +25,8 @@ export namespace scopegpu
         TextVertex,
         /// Glyphs from the atlas.
         TextFragment,
+        /// Data blocks' glyphs, each an instance of a glyph's quad, placed at a whole pixel.
+        BlockVertex,
         /// A triangle over the whole target.
         FullscreenVertex,
         /// One axis of the glow's blur.
@@ -82,6 +84,8 @@ namespace scopegpu
                     return {.blobs = &shadercode::TextVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::TextFragment:
                     return {.blobs = &shadercode::TextFragment, .stage = SDL_GPU_SHADERSTAGE_FRAGMENT, .samplers = 1, .uniformBuffers = 0};
+                case ShaderName::BlockVertex:
+                    return {.blobs = &shadercode::BlockVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 1};
                 case ShaderName::FullscreenVertex:
                     return {.blobs = &shadercode::FullscreenVertex, .stage = SDL_GPU_SHADERSTAGE_VERTEX, .samplers = 0, .uniformBuffers = 0};
                 case ShaderName::BlurFragment:

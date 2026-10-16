@@ -110,6 +110,39 @@ namespace scopegpu
             return x;
         }();
 
+        // A glyph's quad, which each of a data block's glyphs is an instance of: its corners from top left to bottom
+        // right, in two triangles as `Glyphs` draws text's quads.
+        constexpr std::array<scope::Vec2, 6> QuadCorners{{
+            {.x = 0.0F, .y = 0.0F},
+            {.x = 1.0F, .y = 0.0F},
+            {.x = 1.0F, .y = 1.0F},
+            {.x = 0.0F, .y = 0.0F},
+            {.x = 1.0F, .y = 1.0F},
+            {.x = 0.0F, .y = 1.0F},
+        }};
+        constexpr std::array BlockCornerAttributes{
+            SDL_GPUVertexAttribute{.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = 0},
+        };
+
+        // Each data block's glyph's instance: where its block starts and its column and line, its quad, where it is in
+        // the atlas, and its color.
+        constexpr std::uint32_t BlockGlyphVectors = 4;
+        static_assert(sizeof(BlockGlyph) == BlockGlyphVectors * Vec4Bytes);
+        constexpr auto BlockGlyphAttributes = []
+        {
+            std::array<SDL_GPUVertexAttribute, BlockGlyphVectors> x{};
+
+            for (std::uint32_t i = 0; i < BlockGlyphVectors; ++i)
+            {
+                x.at(i) = {.location = static_cast<std::uint32_t>(std::size(BlockCornerAttributes)) + i,
+                           .buffer_slot = 1,
+                           .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+                           .offset = i * Vec4Bytes};
+            }
+
+            return x;
+        }();
+
         // The other shaders' uniform blocks, laid out as std140 lays them out.
         struct TargetUniforms
         {
@@ -122,6 +155,14 @@ namespace scopegpu
             std::array<float, 4> projection{};
             // Target pixels per logical unit, and 1 if the scale ring clips the marks.
             std::array<float, 4> view{};
+        };
+
+        // block.vert's, which starts as text.vert's does.
+        struct BlockUniforms
+        {
+            std::array<float, 4> projection{};
+            // How the glyphs step from where their blocks start: by a column, by a line, and up by the font's ascent.
+            std::array<float, 4> metrics{};
         };
 
         struct BackdropUniforms
@@ -402,6 +443,15 @@ export namespace scopegpu
             Extent size;
         };
 
+        // What a run draws from the text: the first of the glyphs' indices or, for data blocks, of their glyphs'
+        // instances, how many, and for data blocks, how their glyphs step.
+        struct TextRange
+        {
+            std::uint32_t first{};
+            std::uint32_t count{};
+            BlockMetrics metrics;
+        };
+
         // A run of marks to draw, into the main pass's target or the glow's.
         struct MarksDraw
         {
@@ -426,6 +476,8 @@ export namespace scopegpu
             std::uint32_t glowVertices{};
             std::uint32_t glyphVertices{};
             std::uint32_t markInstances{};
+            std::uint32_t blockCorners{};
+            std::uint32_t blockGlyphs{};
             std::uint32_t vertexBytes{};
             std::uint32_t glowIndices{};
             std::uint32_t glyphIndices{};
@@ -506,8 +558,16 @@ export namespace scopegpu
                     CreateTexture(device_, OffscreenFormat, offscreenSize_, SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER);
             }
 
+            blockPipeline_ = CreatePipeline(device_, {.vertex = ShaderName::BlockVertex,
+                                                      .fragment = ShaderName::TextFragment,
+                                                      .attributes = BlockCornerAttributes,
+                                                      .pitch = sizeof(scope::Vec2),
+                                                      .targets = frame,
+                                                      .instanceAttributes = BlockGlyphAttributes,
+                                                      .instancePitch = sizeof(BlockGlyph)});
+
             return shapePipeline_ && glowPipeline_ && textPipeline_ && blurPipeline_ && compositePipeline_ && markPipeline_ && markGlowPipeline_
-                   && linear_ && nearest_ && placeholder_ && (window_ != nullptr || offscreen_);
+                   && blockPipeline_ && linear_ && nearest_ && placeholder_ && (window_ != nullptr || offscreen_);
         }
 
         // The texture to draw the frame into: the window's swapchain texture, waited for, or the offscreen one. Empty
@@ -710,6 +770,22 @@ export namespace scopegpu
 
                 for (const auto& run : frame_.runs())
                 {
+                    // Data blocks are drawn from their glyphs' instances, with the metrics they're placed by.
+                    if (const auto* blocks = std::get_if<BlocksRun>(&run); blocks != nullptr)
+                    {
+                        const auto first = static_cast<std::uint32_t>(std::size(glyphs_.blockGlyphs()));
+                        const auto metrics = glyphs_.addBlocks(*blocks->blocks, frame_.scale());
+
+                        if (!metrics.has_value())
+                        {
+                            return false;
+                        }
+
+                        textRanges_.push_back(
+                            {.first = first, .count = static_cast<std::uint32_t>(std::size(glyphs_.blockGlyphs())) - first, .metrics = *metrics});
+                        continue;
+                    }
+
                     const auto* text = std::get_if<TextRun>(&run);
                     const auto first = static_cast<std::uint32_t>(std::size(glyphs_.indices()));
 
@@ -718,7 +794,7 @@ export namespace scopegpu
                         return false;
                     }
 
-                    textRanges_.emplace_back(first, static_cast<std::uint32_t>(std::size(glyphs_.indices())) - first);
+                    textRanges_.push_back({.first = first, .count = static_cast<std::uint32_t>(std::size(glyphs_.indices())) - first, .metrics = {}});
                 }
 
                 if (!glyphs_.overflowed())
@@ -743,6 +819,14 @@ export namespace scopegpu
             {
                 x.markInstances = AlignUp(x.vertexBytes, RegionAlignment);
                 x.vertexBytes = x.markInstances + BytesOf(frame_.markInstances());
+            }
+
+            // So do the data blocks' glyphs' instances, after the corners of the quad they're each drawn as.
+            if (!std::empty(glyphs_.blockGlyphs()))
+            {
+                x.blockCorners = AlignUp(x.vertexBytes, RegionAlignment);
+                x.blockGlyphs = AlignUp(x.blockCorners + BytesOf(QuadCorners), RegionAlignment);
+                x.vertexBytes = x.blockGlyphs + BytesOf(glyphs_.blockGlyphs());
             }
 
             x.glowIndices = AlignUp(BytesOf(frame_.mesh().indices()), RegionAlignment);
@@ -839,6 +923,12 @@ export namespace scopegpu
             put(layout.indexUpload + layout.glyphIndices, std::as_bytes(std::span{glyphs_.indices()}));
             put(layout.glyphUpload, glyphs_.staged());
             put(layout.markInstances, std::as_bytes(std::span{frame_.markInstances()}));
+
+            if (!std::empty(glyphs_.blockGlyphs()))
+            {
+                put(layout.blockCorners, std::as_bytes(std::span{QuadCorners}));
+                put(layout.blockGlyphs, std::as_bytes(std::span{glyphs_.blockGlyphs()}));
+            }
 
             const auto markIndexUpload = layout.marks.has_value() ? layout.markUpload + AlignUp(layout.marks->vertexBytes, RegionAlignment) : 0;
 
@@ -1054,6 +1144,7 @@ export namespace scopegpu
                 Text,
                 Backdrop,
                 Marks,
+                Blocks,
             };
             auto bound = Bound::Nothing;
 
@@ -1079,9 +1170,9 @@ export namespace scopegpu
                         },
                         [&](const TextRun& /*x*/)
                         {
-                            const auto [first, count] = textRanges_.at(i);
+                            const auto& range = textRanges_.at(i);
 
-                            if (count == 0)
+                            if (range.count == 0)
                             {
                                 return;
                             }
@@ -1096,18 +1187,49 @@ export namespace scopegpu
                                 bound = Bound::Text;
                             }
 
-                            drawIndexed(pass, count, first);
+                            drawIndexed(pass, range.count, range.first);
                         },
                         [&](const MarksRun& x)
                         {
                             drawMarks(commands, pass, layout, {.run = x, .glow = false, .target = target.size});
                             bound = Bound::Marks;
                         },
+                        [&](const BlocksRun& /*x*/)
+                        {
+                            if (textRanges_.at(i).count == 0)
+                            {
+                                return;
+                            }
+
+                            drawBlocks(commands, pass, layout, textRanges_.at(i), target.size);
+                            bound = Bound::Blocks;
+                        },
                     },
                     frame_.runs().at(i));
             }
 
             SDL_EndGPURenderPass(pass);
+        }
+
+        // Draws a run of data blocks' glyphs, each an instance of a glyph's quad that the GPU places. The uniforms they
+        // push start with the target's projection, which shapes and text drawn after them read.
+        auto drawBlocks(SDL_GPUCommandBuffer* commands, SDL_GPURenderPass* pass, const Layout& layout, const TextRange& range, Extent target) -> void
+        {
+            // The instances are bound from the run's first, so each backend starts its instances at 0.
+            const std::array buffers{
+                SDL_GPUBufferBinding{.buffer = vertices_.get(), .offset = layout.blockCorners},
+                SDL_GPUBufferBinding{.buffer = vertices_.get(),
+                                     .offset = layout.blockGlyphs + (range.first * static_cast<std::uint32_t>(sizeof(BlockGlyph)))},
+            };
+            const SDL_GPUTextureSamplerBinding atlas{.texture = glyphs_.atlas(), .sampler = nearest_.get()};
+            const BlockUniforms uniforms{.projection = ProjectionOf(target).projection,
+                                         .metrics = {range.metrics.advance, range.metrics.lineSkip, range.metrics.ascent, 0.0F}};
+            SDL_BindGPUGraphicsPipeline(pass, blockPipeline_.get());
+            SDL_BindGPUVertexBuffers(pass, 0, std::data(buffers), static_cast<std::uint32_t>(std::size(buffers)));
+            SDL_BindGPUFragmentSamplers(pass, 0, &atlas, 1);
+            SDL_PushGPUVertexUniformData(commands, 0, &uniforms, sizeof(uniforms));
+            SDL_DrawGPUPrimitives(pass, static_cast<std::uint32_t>(std::size(QuadCorners)), range.count, 0, 0);
+            ++stats_.draws;
         }
 
         // Draws a run of the tracks' marks as instances of their mesh: at the picture's scale, where the scale ring
@@ -1267,6 +1389,7 @@ export namespace scopegpu
         Pipeline compositePipeline_;
         Pipeline markPipeline_;
         Pipeline markGlowPipeline_;
+        Pipeline blockPipeline_;
         Sampler linear_;
         Sampler nearest_;
         Texture placeholder_;
@@ -1294,8 +1417,8 @@ export namespace scopegpu
         // The picture being drawn, which the frame's runs point into, so it's kept until the frame's main pass is recorded.
         scope::Picture picture_;
         Frame frame_;
-        // For each of the frame's runs, the first of the glyphs' indices it draws and how many.
-        std::vector<std::pair<std::uint32_t, std::uint32_t>> textRanges_;
+        // What each of the frame's runs draws from the text.
+        std::vector<TextRange> textRanges_;
         FrameStats stats_;
         // Offscreen, the fences of the frames in flight, and the slot the next frame takes.
         std::array<SDL_GPUFence*, FramesInFlight> fences_{};

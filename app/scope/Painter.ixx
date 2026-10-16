@@ -284,8 +284,10 @@ export namespace scope
                         },
                         // NOLINTNEXTLINE(misc-no-recursion)
                         [&](const Group& x) { return drawGroup(x, style); },
-                        // Pictures are composed for this painter with their marks as shapes, so they hold none.
+                        // Pictures are composed for this painter with their marks as shapes and their data blocks as
+                        // texts, so they hold neither.
                         [](const Marks& /*x*/) { return true; },
+                        [](const DataBlocks& /*x*/) { return true; },
                     },
                     item.value);
 

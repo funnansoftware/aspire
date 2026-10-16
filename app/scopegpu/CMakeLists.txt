@@ -35,6 +35,7 @@ endif()
 # The 2d shaders are scopegpu2d's: the same work as their namesakes, but drawn through SDL's renderer, behind its own
 # vertex shaders and into one target at a time. Both sets share what's in shaders/common.
 set(scopegpuShaders
+    block.vert
     blur.frag
     blur2d.frag
     composite.frag
