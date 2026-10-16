@@ -14,6 +14,11 @@ vcpkg_from_github(
         # them for each batch of vertices. Text that's resized redraws its glyphs, uploading and flushing once for
         # each, and on D3D12 that made each frame of a window being resized take tens of milliseconds.
         fix-gpu-render-uploads.patch
+        # aspire: Metal uploads to a texture from rows and layers as far apart as the transfer says, as Vulkan and
+        # D3D12 do and as Metal's own downloads did, rather than as if they were packed to the region's size. The
+        # renderer's texture updates and scopegpu's glyphs lay their rows out as D3D12 copies from, 256 bytes apart,
+        # and read as packed on Metal, the padding between them was copied as pixels: text came out as diagonal stripes.
+        fix-metal-upload-pitch.patch
         # aspire: on Windows, a window being dragged to a new size draws a frame for each size as it's taken, rather
         # than only when the modal loop's timer gets round to it. Each is drawn after SetWindowPos returns and the
         # compositor's next composition, so the window's new size has usually reached the compositor first. Drawn

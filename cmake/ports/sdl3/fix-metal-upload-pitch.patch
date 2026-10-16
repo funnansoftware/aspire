@@ -1,0 +1,35 @@
+diff --git a/src/gpu/metal/SDL_gpu_metal.m b/src/gpu/metal/SDL_gpu_metal.m
+index 3a02f8f..31b0ba4 100644
+--- a/src/gpu/metal/SDL_gpu_metal.m
++++ b/src/gpu/metal/SDL_gpu_metal.m
+@@ -1808,15 +1808,27 @@ static void METAL_UploadToTexture(
+         MetalRenderer *renderer = metalCommandBuffer->renderer;
+         MetalBufferContainer *bufferContainer = (MetalBufferContainer *)source->transfer_buffer;
+         MetalTextureContainer *textureContainer = (MetalTextureContainer *)destination->texture;
++        // The rows and layers are as far apart as the source says, as on the other backends and in downloads.
++        Uint32 bufferStride = source->pixels_per_row;
++        Uint32 bufferImageHeight = source->rows_per_layer;
++        Uint32 bytesPerRow, bytesPerDepthSlice;
+ 
+         MetalTexture *metalTexture = METAL_INTERNAL_PrepareTextureForWrite(renderer, textureContainer, cycle);
+ 
++        if (bufferStride == 0 || bufferImageHeight == 0) {
++            bufferStride = destination->w;
++            bufferImageHeight = destination->h;
++        }
++
++        bytesPerRow = BytesPerRow(bufferStride, textureContainer->header.info.format);
++        // sourceBytesPerImage expects the stride between 2D images (slices) of a 3D texture, not the size of the entire region
++        bytesPerDepthSlice = SDL_CalculateGPUTextureFormatSize(textureContainer->header.info.format, bufferStride, bufferImageHeight, 1);
++
+         [metalCommandBuffer->blitEncoder
+                  copyFromBuffer:bufferContainer->activeBuffer->handle
+                    sourceOffset:source->offset
+-              sourceBytesPerRow:BytesPerRow(destination->w, textureContainer->header.info.format)
+-            // sourceBytesPerImage expects the stride between 2D images (slices) of a 3D texture, not the size of the entire region
+-            sourceBytesPerImage:SDL_CalculateGPUTextureFormatSize(textureContainer->header.info.format, destination->w, destination->h, 1)
++              sourceBytesPerRow:bytesPerRow
++            sourceBytesPerImage:bytesPerDepthSlice
+                      sourceSize:MTLSizeMake(destination->w, destination->h, destination->d)
+                       toTexture:metalTexture->handle
+                destinationSlice:destination->layer
