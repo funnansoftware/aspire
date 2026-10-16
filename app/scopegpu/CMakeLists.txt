@@ -138,13 +138,15 @@ target_sources(scopegpu-shaders PUBLIC
 )
 target_link_libraries(scopegpu-shaders PUBLIC scopegpu-gpu)
 
-# A frame of the picture laid out for the GPU: scope's triangles, and what's drawn in what order.
+# A frame of the picture laid out for the GPU: scope's triangles, and what's drawn in what order. The glow's triangles
+# are worked out on a thread of their own, which older glibc needs libpthread for.
+find_package(Threads REQUIRED)
 add_library(scopegpu-frame STATIC)
 target_sources(scopegpu-frame PUBLIC
     FILE_SET cxx_modules TYPE CXX_MODULES FILES
         Frame.ixx
 )
-target_link_libraries(scopegpu-frame PUBLIC scope-glow scope-tessellation)
+target_link_libraries(scopegpu-frame PUBLIC scope-glow scope-tessellation Threads::Threads)
 
 # Rectangles packed into an atlas on shelves.
 add_library(scopegpu-shelves STATIC)

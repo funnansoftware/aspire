@@ -38,7 +38,8 @@ export namespace scopegpu
     ///
     /// The shapes are tessellated as scope tessellates them, into one mesh for the frame and one for the glow. The
     /// main pass draws the frame's runs in the picture's order, so shapes and text overlap as they do in scope. The
-    /// glow is tessellated once with all its channels, which the GPU splits into full and fainter as it draws them.
+    /// glow is tessellated once with all its channels, which the GPU splits into full and fainter as it draws them,
+    /// and on a thread of its own while the frame's mesh is tessellated, since every glowing shape is tessellated twice.
     ///
     /// A frame is reused from one to the next, so its meshes keep their memory.
     class Frame
@@ -65,19 +66,25 @@ export namespace scopegpu
 
             scope::CollectGlow(picture.root, glowShapes_);
 
+            // The glow's mesh is tessellated alongside the frame's. The two only read the picture, and each fills a
+            // mesh of its own.
+            std::future<void> glowing;
+
             if (!std::empty(glowShapes_))
             {
                 glow_ = scope::PlanGlow(picture.scale, width, height);
                 const scope::Style style{.scale = glow_->scale, .clip = std::nullopt, .widen = 0.0F, .opacity = scope::GlowOpacity};
-
-                for (const auto* shape : glowShapes_)
-                {
-                    scope::Tessellate(glowMesh_, *shape, style);
-                }
+                glowing = std::async(std::launch::async, [this, style] { tessellateGlow(style); });
             }
 
             addGroup(picture.root, {.scale = picture.scale, .clip = std::nullopt, .widen = 0.0F, .opacity = 1.0F});
             closeShapes();
+
+            // Rethrows anything the glow's thread threw, once it's done.
+            if (glowing.valid())
+            {
+                glowing.get();
+            }
         }
 
         /// @brief The main pass's triangles, in target pixels.
@@ -116,6 +123,15 @@ export namespace scopegpu
         }
 
     private:
+        // Adds the glowing shapes to the glow's mesh, in the order they're drawn.
+        auto tessellateGlow(const scope::Style& style) -> void
+        {
+            for (const auto* shape : glowShapes_)
+            {
+                scope::Tessellate(glowMesh_, *shape, style);
+            }
+        }
+
         // Adds a group's items in order, as scope's painter draws them.
         // NOLINTNEXTLINE(misc-no-recursion)
         auto addGroup(const scope::Group& group, scope::Style style) -> void
