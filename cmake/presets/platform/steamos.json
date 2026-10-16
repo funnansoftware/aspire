@@ -12,7 +12,7 @@
     "configurePresets": [
         {
             "name": "x64-steamos-gcc-release",
-            "displayName": "x64-steamos-gcc-release (Steam Deck release build, sniper glibc 2.31)",
+            "displayName": "x64-steamos-gcc-release (Steam Deck release build, steamrt4 glibc 2.41)",
             "inherits": [
                 "config-binaryDir",
                 "config-release",

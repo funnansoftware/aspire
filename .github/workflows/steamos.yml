@@ -16,12 +16,16 @@ concurrency:
 
 jobs:
   # SteamOS is x86_64 glibc Linux, so a native build produces a Steam Deck
-  # binary — the sniper base (glibc 2.31) is what makes it run there. The image
-  # compiles GCC 15 from source on a cache miss, so allow for that on top of the
-  # build itself; cached layers bring a run back to the usual length.
+  # binary — the steamrt4 base (glibc 2.41) is what makes it run there. The image
+  # is kept in GHCR under a hash of its Dockerfile and only built when the
+  # Dockerfile changes. That build compiles GCC 15 from source, so allow for it
+  # on top of the build itself; other runs just pull the image.
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,26 +39,29 @@ jobs:
         uses: ./.github/actions/devcontainer
         with:
           directory: .devcontainer/steamos
+          image: ghcr.io/${{ github.repository }}/steamos-devcontainer
           run: |
             ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
             cmake --preset x64-steamos-gcc-release
             cmake --build --preset x64-steamos-gcc-release --parallel
             ctest --preset x64-steamos-gcc-release --no-tests=ignore
             cmake --install build/x64-steamos-gcc-release
-            # The point of the sniper container is a low glibc floor. Assert
+            # The point of the steamrt4 container is a known glibc floor. Assert
             # that nothing in the installed tree references anything newer than
-            # sniper's GLIBC_2.31, so a regression (e.g. a base-image bump)
+            # steamrt4's GLIBC_2.41, so a regression (e.g. a base-image bump)
             # that would break the Deck fails loudly here.
             test -x build/x64-steamos-gcc-release/installed/bin/evford
             max=$(find build/x64-steamos-gcc-release/installed -type f \( -name '*.so*' -o -path '*/bin/*' \) \
               -exec objdump -T {} \; 2>/dev/null \
               | grep -oE 'GLIBC_[0-9]+\.[0-9]+(\.[0-9]+)?' | sort -uV | tail -1)
             echo "highest glibc symbol required: ${max:-none}"
-            if [ -n "$max" ] && [ "$(printf '%s\nGLIBC_2.31\n' "$max" | sort -V | tail -1)" != "GLIBC_2.31" ]; then
-              echo "::error::installed tree requires $max, above the sniper floor GLIBC_2.31"
+            if [ -n "$max" ] && [ "$(printf '%s\nGLIBC_2.41\n' "$max" | sort -V | tail -1)" != "GLIBC_2.41" ]; then
+              echo "::error::installed tree requires $max, above the steamrt4 floor GLIBC_2.41"
               exit 1
             fi
             tar -czf build/aspire-steamos-x64.tar.gz -C build/x64-steamos-gcc-release/installed .
+
+      - uses: ./.github/actions/save-vcpkg
 
       - uses: actions/upload-artifact@v4
         with:

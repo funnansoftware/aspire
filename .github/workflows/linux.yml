@@ -18,6 +18,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,6 +33,7 @@ jobs:
       - name: Build, test, and package in devcontainer
         uses: ./.github/actions/devcontainer
         with:
+          image: ghcr.io/${{ github.repository }}/devcontainer
           run: |
             ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
             cmake --preset x64-linux-clang-release
@@ -37,6 +41,8 @@ jobs:
             ctest --preset x64-linux-clang-release --no-tests=ignore
             cmake --install build/x64-linux-clang-release
             tar -czf build/aspire-linux-x64.tar.gz -C build/x64-linux-clang-release/installed .
+
+      - uses: ./.github/actions/save-vcpkg
 
       - uses: actions/upload-artifact@v4
         with:

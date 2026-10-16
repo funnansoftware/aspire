@@ -38,6 +38,8 @@ jobs:
       - name: Configure
         run: cmake --preset x64-windows-msvc-release
 
+      - uses: ./.github/actions/save-vcpkg
+
       - name: Build
         run: cmake --build --preset x64-windows-msvc-release --parallel
 

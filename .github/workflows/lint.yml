@@ -18,6 +18,9 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -38,8 +41,11 @@ jobs:
       - name: ${{ matrix.target }}
         uses: ./.github/actions/devcontainer
         with:
+          image: ghcr.io/${{ github.repository }}/devcontainer
           run: |
             git config --global --add safe.directory "$GITHUB_WORKSPACE"
             ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
             cmake --preset x64-linux-clang-debug
             cmake --build --preset x64-linux-clang-debug --target ${{ matrix.target }}
+
+      - uses: ./.github/actions/save-vcpkg

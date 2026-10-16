@@ -39,6 +39,8 @@ jobs:
       - name: Configure
         run: cmake --preset arm64-macos-clang-release
 
+      - uses: ./.github/actions/save-vcpkg
+
       - name: Build
         run: cmake --build --preset arm64-macos-clang-release --parallel
 
